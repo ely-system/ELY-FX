@@ -382,30 +382,47 @@ function local(e) {
   return [e.clientX - r.left, e.clientY - r.top];
 }
 
-stage.addEventListener('pointerdown', (e) => {
+// Gestos de toque:
+//  - um dedo só vira ação (pintar / mover origem) depois de andar 10 px E passados TOUCH_GRACE ms
+//    sem um segundo dedo; assim o início de uma pinça nunca pinta nem move a origem;
+//  - parado por 380 ms = mostrar o original;
+//  - depois de uma pinça, o dedo que sobrar é ignorado até todos saírem da tela (gestureLock);
+//  - o segundo dedo conta mesmo se cair sobre a barra ou o painel que ficam por cima da foto.
+const TOUCH_GRACE = 90;
+const TOUCH_SLOP = 10;
+let gestureLock = false;
+
+function onPointerDown(e) {
   if (!state.loaded) return;
-  if (e.target.closest('.zoombar')) return;
+  const touch = e.pointerType !== 'mouse';
+  // Primeiro dedo de um gesto novo: descarta restos de um gesto anterior que não terminou direito.
+  if (touch && e.isPrimary && pointers.size) {
+    cancelSingleAction();
+    drag = null;
+    pointers.clear();
+    gestureLock = false;
+  }
   const p = local(e);
   pointers.set(e.pointerId, p);
   try { stage.setPointerCapture(e.pointerId); } catch { /* ponteiro já liberado */ }
   e.preventDefault();
 
-  if (pointers.size === 2) {
-    if (drag?.type === 'pending') clearTimeout(drag.timer);
-    if (drag?.type === 'peek') setCompareHold(false);
-    if (drag?.type === 'paint') mask.cancelStroke();
-    if (drag?.type === 'center' && drag.before) {
-      for (const k in drag.before) setParam(k, drag.before[k], false, true);
+  if (pointers.size >= 2) {
+    if (pointers.size === 2) {
+      cancelSingleAction();
+      startPinch();
+      gestureLock = true;
+      requestRender(true);
     }
-    startPinch();
-    requestRender();
     return;
   }
-  if (pointers.size > 2) return;
 
-  // Toque/caneta: espera o dedo se mover para decidir. Parado por um instante = mostrar o original.
-  if (e.pointerType !== 'mouse' && e.button === 0 && !state.space && state.tool !== 'pan') {
-    drag = { type: 'pending', start: p, timer: setTimeout(startPeek, 380) };
+  if (touch) {
+    if (gestureLock || e.button !== 0 || state.space || state.tool === 'pan') {
+      if (!gestureLock && (state.space || state.tool === 'pan')) { drag = { type: 'pan', last: p }; setPanning(true); }
+      return;
+    }
+    drag = { type: 'pending', start: p, t: performance.now(), path: [p], moved: false, timer: setTimeout(startPeek, 380) };
     return;
   }
 
@@ -422,7 +439,29 @@ stage.addEventListener('pointerdown', (e) => {
   } else {
     startAction(p);
   }
+}
+
+stage.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('.zoombar') && !pointers.size) return;
+  onPointerDown(e);
 });
+// Segundo dedo sobre a barra de cima ou o painel (que ficam por cima da foto): ainda é pinça.
+document.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse' || !pointers.size || stage.contains(e.target)) return;
+  onPointerDown(e);
+}, true);
+
+/** Desfaz o que um único dedo tinha começado (usado quando vira pinça). */
+function cancelSingleAction() {
+  if (!drag) return;
+  if (drag.type === 'pending') clearTimeout(drag.timer);
+  if (drag.type === 'peek') setCompareHold(false);
+  if (drag.type === 'paint') mask.cancelStroke();
+  if (drag.type === 'center' && drag.before) {
+    for (const k in drag.before) setParam(k, drag.before[k], false, true);
+  }
+  if (drag.type === 'pan') setPanning(false);
+}
 
 /** Começa a ação da ferramenta atual no ponto p (mover origem, pintar ou, fora da foto, mover a vista). */
 function startAction(p) {
@@ -440,13 +479,41 @@ function startAction(p) {
   }
 }
 
+/** Continua a ação em andamento até o ponto p. */
+function continueAction(p, e) {
+  if (!drag) return;
+  if (drag.type === 'pan') {
+    view.pan(p[0] - drag.last[0], p[1] - drag.last[1]);
+    drag.last = p;
+    updateZoomLabel();
+    requestRender();
+  } else if (drag.type === 'center') {
+    moveCenter(p, true);
+  } else if (drag.type === 'paint') {
+    const events = e?.getCoalescedEvents ? e.getCoalescedEvents() : [];
+    if (events.length > 1) for (const ce of events) paintTo(local(ce));
+    else paintTo(p);
+    requestRender();
+  }
+}
+
+/** Promove o toque pendente a ação, refazendo o caminho já percorrido pelo dedo. */
+function commitPending() {
+  const path = drag.path;
+  clearTimeout(drag.timer);
+  drag = null;
+  lastPointer = path[0];
+  startAction(path[0]);
+  for (let i = 1; i < path.length; i++) continueAction(path[i]);
+}
+
 function insideImage(p) {
   const [ix, iy] = view.toImage(p[0], p[1]);
   return ix >= 0 && iy >= 0 && ix <= renderer.src.w && iy <= renderer.src.h;
 }
 
 function startPeek() {
-  if (drag?.type !== 'pending') return;
+  if (drag?.type !== 'pending' || drag.moved || pointers.size !== 1) return;
   drag = { type: 'peek' };
   setCompareHold(true);
   navigator.vibrate?.(10);
@@ -462,48 +529,35 @@ stage.addEventListener('pointermove', (e) => {
     return;
   }
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, p);
+  else if (e.pointerType !== 'mouse') return; // dedo que não começou no palco
+  if (drag?.type === 'pinch') { movePinch(); return; }
   if (drag?.type === 'peek') return;
   if (drag?.type === 'pending') {
-    if (Math.hypot(p[0] - drag.start[0], p[1] - drag.start[1]) < 8) return;
-    clearTimeout(drag.timer);
-    const start = drag.start;
-    drag = null;
-    lastPointer = start;
-    startAction(start);
+    drag.path.push(p);
+    if (!drag.moved && Math.hypot(p[0] - drag.start[0], p[1] - drag.start[1]) >= TOUCH_SLOP) {
+      drag.moved = true;
+      clearTimeout(drag.timer);
+    }
+    if (!drag.moved || performance.now() - drag.t < TOUCH_GRACE) return;
+    commitPending();
   }
   lastPointer = p;
   updateCursor();
-  if (!drag) return;
-
-  if (drag.type === 'pinch') { movePinch(); return; }
-  if (drag.type === 'pan') {
-    view.pan(p[0] - drag.last[0], p[1] - drag.last[1]);
-    drag.last = p;
-    updateZoomLabel();
-    requestRender();
-  } else if (drag.type === 'center') {
-    moveCenter(p, true);
-  } else if (drag.type === 'paint') {
-    const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
-    for (const ce of events.length ? events : [e]) paintTo(local(ce));
-    requestRender();
-  }
+  continueAction(p, e);
 });
 
 function endPointer(e) {
   if (!pointers.has(e.pointerId)) return;
   pointers.delete(e.pointerId);
+  if (!pointers.size) gestureLock = false;
   if (drag?.type === 'pinch') {
     if (pointers.size < 2) { drag = null; state.live = false; requestRender(true); }
     return;
   }
   if (!drag) return;
   if (drag.type === 'pending') {
-    // Toque rápido sem arrastar: carimba o pincel ou posiciona o ponto de origem.
-    clearTimeout(drag.timer);
-    const start = drag.start;
-    drag = null;
-    startAction(start);
+    // Toque rápido: carimba o pincel ou posiciona o ponto de origem (refazendo o caminho, se houve).
+    commitPending();
     if (!drag) return;
   }
   if (drag.type === 'peek') {
@@ -526,9 +580,9 @@ function endPointer(e) {
 }
 stage.addEventListener('pointerup', endPointer);
 stage.addEventListener('pointercancel', (e) => {
-  if (drag?.type === 'pending') { clearTimeout(drag.timer); drag = null; }
-  if (drag?.type === 'peek') { setCompareHold(false); drag = null; }
-  if (drag?.type === 'paint') { mask.cancelStroke(); drag = null; requestRender(); }
+  // O sistema tomou o gesto: nada do que um dedo começou deve ficar aplicado.
+  if (drag && drag.type !== 'pinch') { cancelSingleAction(); drag = null; requestRender(true); }
+  if (pointers.size > 1) gestureLock = true;
   endPointer(e);
 });
 stage.addEventListener('contextmenu', (e) => { if (state.loaded) e.preventDefault(); });
