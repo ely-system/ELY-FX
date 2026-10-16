@@ -253,6 +253,17 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   max-width: calc(100vw - 24px); font-size: 13px;
 }
 
+.updating {
+  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(12,12,12,.92);
+}
+.updating[hidden] { display: none; }
+.updating-box { display: flex; flex-direction: column; align-items: center; gap: 14px; font-size: 15px; color: var(--text); }
+.spinner {
+  width: 32px; height: 32px; border-radius: 50%; border: 3px solid rgba(255,255,255,.15); border-top-color: var(--accent);
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* ---------- Dialog ---------- */
 .dialog {
   background: var(--panel-2); color: var(--text); border: 1px solid #3a3a3a; border-radius: 12px;

@@ -2,7 +2,8 @@
 // Estratégia "rede primeiro": online sempre pega a versão mais nova publicada;
 // offline usa a última cópia guardada.
 
-const CACHE = 'elyfx-v2';
+// Na publicação vira 'elyfx-<versão>': cada versão tem seu próprio cache e o anterior é apagado.
+const CACHE = 'elyfx-dev';
 const SHELL = [
   './',
   './index.html',
@@ -12,6 +13,7 @@ const SHELL = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './js/main.js',
+  './js/version.js',
   './js/ui.js',
   './js/viewport.js',
   './js/mask.js',

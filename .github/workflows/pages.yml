@@ -1,6 +1,6 @@
 # Publica o site no GitHub Pages a cada push na main.
-# Gera version.json com o commit publicado: o app usa esse arquivo para detectar
-# que existe uma versão nova e obrigar a atualização.
+# Antes de publicar, carimba a versão (commit) no código e nos endereços dos arquivos:
+# o app compara a versão que está rodando com version.json e se obriga a atualizar.
 name: Publicar site
 
 on:
@@ -26,10 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Gerar version.json
-        run: |
-          printf '{"version":"%s","date":"%s"}\n' "${GITHUB_SHA::7}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > version.json
-          cat version.json
+      - name: Carimbar versão
+        run: python .github/stamp_version.py "${GITHUB_SHA::7}"
 
       - uses: actions/configure-pages@v5
 
