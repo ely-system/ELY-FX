@@ -66,7 +66,7 @@ export const radialBlur = {
   name: 'Desfoque radial',
   params: [
     { id: 'method', type: 'select', label: 'Método', default: 'spin',
-      options: [{ value: 'spin', label: 'Giro' }, { value: 'zoom', label: 'Zoom' }] },
+      options: [{ value: 'spin', label: 'Giro (circular)' }, { value: 'zoom', label: 'Zoom (raios a partir do centro)' }] },
     { id: 'direction', type: 'select', label: 'Direção', default: 'both', options: directionOptions,
       tip: 'Nos dois sentidos espalha o rastro igualmente; os demais criam um rastro de movimento só para um lado.' },
     { id: 'amount', type: 'range', label: 'Intensidade', min: 0, max: 100, step: 1, default: 15 },
