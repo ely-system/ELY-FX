@@ -1182,13 +1182,12 @@ function muiApply() {
 }
 
 for (const b of mui.querySelectorAll('.mtabs [data-tab]')) b.addEventListener('click', () => muiSetTab(b.dataset.tab));
-$('#muiHandle').addEventListener('click', () => { muiOpen = !muiOpen; muiApply(); });
 
-// Arrastar a alça ou as abas para baixo recolhe; para cima abre. (A lista rola normalmente.)
+// Arrastar as abas para baixo recolhe o painel; para cima abre. (A lista rola normalmente.)
 {
   let sw = null;
   mui.addEventListener('pointerdown', (e) => {
-    if (!e.target.closest('.mui-handle, .mtabs')) return;
+    if (!e.target.closest('.mtabs')) return;
     sw = { x: e.clientX, y: e.clientY, id: e.pointerId, done: false };
   });
   mui.addEventListener('pointermove', (e) => {

@@ -41,7 +41,7 @@ Em telas de até 860 px o editor muda para uma interface no estilo Lightroom / P
 - **Pressionar e segurar** na foto mostra o original; ao soltar volta ao normal.
 - Tocar/arrastar **fora da foto** move a vista (não mexe no ponto de origem).
 - Dois dedos fazem zoom e movem a foto.
-- Arrastar a alça ou as abas **para baixo** recolhe o painel, **para cima** abre (ou toque na aba ativa).
+- Arrastar as abas **para baixo** recolhe o painel, **para cima** abre (ou toque na aba ativa).
 - O botão **Ajustar** aparece só quando a foto está com zoom.
 - Exportar oferece **Salvar na galeria / Compartilhar** ou baixar o arquivo.
 

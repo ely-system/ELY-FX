@@ -319,19 +319,16 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   .mui {
     display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
     padding-bottom: env(safe-area-inset-bottom);
-    background: linear-gradient(to bottom, var(--glass), var(--glass) calc(100% - 52px - env(safe-area-inset-bottom)), var(--glass-solid) 0);
+    background: linear-gradient(to bottom, var(--glass), var(--glass) calc(100% - 44px - env(safe-area-inset-bottom)), var(--glass-solid) 0);
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
     border-top: 1px solid rgba(255,255,255,.06);
   }
   .mui.collapsed .mui-list { display: none; }
-  .mui-handle { height: 22px; display: grid; place-items: center; cursor: pointer; touch-action: none; }
-  .mui-handle span { width: 38px; height: 4px; border-radius: 4px; background: rgba(255,255,255,.3); }
-  .mui.collapsed .mui-handle span { background: rgba(255,255,255,.5); }
 
   /* ajustes empilhados (Lightroom): altura fixa para a foto não pular ao trocar de aba */
   .mui-list {
-    height: min(44dvh, 400px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
-    padding: 0 18px 10px; text-shadow: 0 1px 2px rgba(0,0,0,.55);
+    height: min(38dvh, 340px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    padding: 6px 18px 8px; text-shadow: 0 1px 2px rgba(0,0,0,.55);
   }
 
   .tslider { padding: 7px 0 4px; touch-action: pan-y; user-select: none; -webkit-user-select: none; outline: none; }
@@ -377,10 +374,10 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
     display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid rgba(255,255,255,.06);
   }
   .mtabs button {
-    height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-    background: none; border: 0; color: var(--muted); font-size: 11.5px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    background: none; border: 0; color: var(--muted); font-size: 10.5px; cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
-  .mtabs button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .mtabs button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
   .mtabs button.active { color: var(--accent); }
 
   /* controles do tamanho de um dedo (16px evita o zoom automático do iOS ao focar campos) */
