@@ -35,12 +35,14 @@ A máscara define a **área marcada**, onde o efeito não aparece.
 Em telas de até 860 px o editor muda para uma interface no estilo Lightroom / PS mobile:
 
 - A foto ocupa a tela inteira; a barra de cima e o painel de ajustes ficam por cima, translúcidos.
-- Abas **Efeito** e **Máscara** embaixo; acima delas, uma fileira de ajustes (chips) e **um controle por vez**.
+- Abas **Efeito** e **Máscara** embaixo; acima delas, os ajustes **empilhados** como no Lightroom: arraste na horizontal
+  em qualquer ponto da linha para ajustar (toque solto não muda nada, dois toques voltam ao padrão).
 - A ferramenta acompanha a aba: em **Efeito**, arrastar move o ponto de origem; em **Máscara**, um dedo pinta (**+ Marcar** / **− Desmarcar**).
 - **Pressionar e segurar** na foto mostra o original; ao soltar volta ao normal.
 - Tocar/arrastar **fora da foto** move a vista (não mexe no ponto de origem).
 - Dois dedos fazem zoom e movem a foto.
-- Arrastar o painel **para baixo** recolhe, **para cima** abre (ou toque na aba ativa).
+- Arrastar a alça ou as abas **para baixo** recolhe o painel, **para cima** abre (ou toque na aba ativa).
+- O botão **Ajustar** aparece só quando a foto está com zoom.
 - Exportar oferece **Salvar na galeria / Compartilhar** ou baixar o arquivo.
 
 ### App instalável (PWA)

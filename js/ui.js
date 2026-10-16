@@ -98,3 +98,96 @@ export function select({ label, options, value, tip, onInput }) {
   sel.addEventListener('change', () => onInput?.(sel.value, false));
   return { el: root, set: (v) => { sel.value = v; }, get: () => sel.value, setOptions };
 }
+
+/**
+ * Slider para toque, no estilo Lightroom mobile: arrastar na horizontal em qualquer ponto da linha
+ * ajusta o valor (relativo, sem saltos); toque solto não muda nada; arrasto vertical rola a lista;
+ * dois toques rápidos voltam ao valor padrão. `log: true` usa escala logarítmica (ex.: tamanho do pincel).
+ */
+export function touchSlider({ label, min, max, step = 1, value, unit = '', default: def, log = false, onInput }) {
+  const root = el('div', 'tslider');
+  root.tabIndex = 0;
+  root.setAttribute('role', 'slider');
+  root.setAttribute('aria-label', label);
+  const head = el('div', 'ts-head');
+  const val = el('span', 'ts-value');
+  head.append(el('span', 'ts-label', label), val);
+  const track = el('div', 'ts-track');
+  const fill = el('div', 'ts-fill');
+  const thumb = el('div', 'ts-thumb');
+  track.append(fill, thumb);
+  root.append(head, track);
+
+  const decimals = (String(step).split('.')[1] || '').length;
+  const lo = log ? Math.log(Math.max(min, 1e-6)) : min;
+  const hi = log ? Math.log(max) : max;
+  const toT = (v) => ((log ? Math.log(Math.max(v, 1e-6)) : v) - lo) / (hi - lo);
+  const fromT = (t) => { const x = lo + Math.min(1, Math.max(0, t)) * (hi - lo); return log ? Math.exp(x) : x; };
+  let current = value;
+
+  function paint() {
+    const t = toT(current);
+    // Faixas com zero no meio (ex.: ponto de origem) preenchem a partir do zero.
+    const z = min < 0 && max > 0 ? toT(0) : 0;
+    fill.style.left = Math.min(z, t) * 100 + '%';
+    fill.style.width = Math.abs(t - z) * 100 + '%';
+    thumb.style.left = t * 100 + '%';
+    val.textContent = Number(current).toFixed(decimals) + unit;
+    root.setAttribute('aria-valuenow', current);
+  }
+  function set(v) {
+    const s = Math.round(Number(v) / step) * step;
+    current = Math.min(max, Math.max(min, Number(s.toFixed(decimals))));
+    paint();
+  }
+  function emit(v, live) {
+    const before = current;
+    set(v);
+    if (current !== before || !live) onInput?.(current, live);
+  }
+
+  let g = null;
+  let lastTap = 0;
+  root.addEventListener('pointerdown', (e) => {
+    g = { id: e.pointerId, x: e.clientX, y: e.clientY, active: false };
+  });
+  root.addEventListener('pointermove', (e) => {
+    if (!g || e.pointerId !== g.id) return;
+    const dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (!g.active) {
+      if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) { g = null; return; } // é rolagem
+      if (Math.abs(dx) < 6) return;
+      g.active = true;
+      g.x = e.clientX;
+      g.t0 = toT(current);
+      g.w = Math.max(80, track.clientWidth);
+      try { root.setPointerCapture(e.pointerId); } catch { /* ignora */ }
+      root.classList.add('active');
+      return;
+    }
+    e.preventDefault();
+    emit(fromT(g.t0 + (e.clientX - g.x) / g.w), true);
+  });
+  const end = (e) => {
+    if (!g || e.pointerId !== g.id) return;
+    if (g.active) emit(current, false);
+    else if (e.type === 'pointerup') {
+      const now = performance.now();
+      if (now - lastTap < 320 && def != null) emit(def, false);
+      lastTap = now;
+    }
+    g = null;
+    root.classList.remove('active');
+  };
+  root.addEventListener('pointerup', end);
+  root.addEventListener('pointercancel', end);
+  root.addEventListener('keydown', (e) => {
+    const d = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    emit(log ? fromT(toT(current) + d * 0.01) : current + d * step, false);
+  });
+
+  set(value);
+  return { el: root, set, get: () => current };
+}

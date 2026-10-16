@@ -2,7 +2,7 @@ import { Renderer } from './gl/renderer.js';
 import { MaskLayer, MaskHistory, ADD, SUBTRACT } from './mask.js';
 import { Viewport } from './viewport.js';
 import { effects, defaultParams } from './effects/index.js';
-import { slider, select } from './ui.js';
+import { slider, select, touchSlider } from './ui.js';
 
 const $ = (s) => document.querySelector(s);
 const stage = $('#stage');
@@ -122,7 +122,6 @@ const fxOpacityControl = slider({
   tip: 'Intensidade geral do efeito sobre a foto original, como a opacidade de uma camada.',
   onInput: (v) => setFxOpacity(v),
 });
-$('#fxOpacity').append(fxOpacityControl.el);
 
 function setFxOpacity(v) {
   fxOpacityControl.set(v);
@@ -139,6 +138,7 @@ function buildEffectControls() {
   host.replaceChildren();
   paramControls = {};
   const groups = new Map();
+  if (!state.effect.params.some((d) => d.id === 'direction')) host.append(fxOpacityControl.el);
   for (const def of state.effect.params) {
     const onInput = (v, live) => setParam(def.id, v, live);
     let c;
@@ -151,7 +151,12 @@ function buildEffectControls() {
     }
     paramControls[def.id] = c;
 
-    if (!def.group) { host.append(c.el); continue; }
+    if (!def.group) {
+      host.append(c.el);
+      // A opacidade do efeito vem logo depois da direção.
+      if (def.id === 'direction') host.append(fxOpacityControl.el);
+      continue;
+    }
     let g = groups.get(def.group);
     if (!g) {
       const details = document.createElement('details');
@@ -697,6 +702,8 @@ $('#zoomFit').addEventListener('click', () => { view.fit(); updateZoomLabel(); u
 
 function updateZoomLabel() {
   $('#zoomLabel').textContent = Math.round(view.scale * 100) + '%';
+  // No celular só aparece o botão "Ajustar", e apenas quando a foto não está enquadrada.
+  $('#zoombar').classList.toggle('fitted', view.fitted);
 }
 
 // ---------------------------------------------------------------------------
@@ -979,37 +986,38 @@ $('#expGo').addEventListener('click', async (e) => {
 });
 
 // ---------------------------------------------------------------------------
-// Celular: interface no estilo Lightroom/PS mobile
-//   abas embaixo → fileira de "chips" com os ajustes → um único controle por vez,
-//   tudo sobre a foto com fundo translúcido. Arrastar o painel para baixo o recolhe.
+// Celular: interface no estilo Lightroom mobile
+//   abas embaixo → painel translúcido com todos os ajustes da aba empilhados
+//   (arrasta-se direto no slider, sem tocar antes para escolher). Arrastar a alça ou as
+//   abas para baixo recolhe o painel; para cima abre.
 // ---------------------------------------------------------------------------
 
 const mui = $('#mui');
-const muiSheet = $('#muiSheet');
-const muiChips = $('#muiChips');
-const muiEditor = $('#muiEditor');
+const muiList = $('#muiList');
 let muiTab = 'effect';
 let muiOpen = false;
-const muiSelected = { effect: 'amount', mask: 'mode' };
-let muiItems = [];
-let muiEditorState = null; // { item, ctl } do controle aberto
+let muiRows = []; // { it, ctl?, seg?, btn? }
+const muiOpenGroups = new Set();
 
 function muiEffectItems() {
   const items = [
     { key: 'effect', label: 'Efeito', type: 'select', get: () => state.effect.id, set: (v) => switchEffect(v),
-      options: effects.map((f) => ({ value: f.id, label: f.name, short: f.name.replace('Desfoque ', '').replace(/^./, (c) => c.toUpperCase()) })) },
-    { key: 'fxOpacity', label: 'Opacidade', title: 'Opacidade do efeito', type: 'range', min: 0, max: 100, step: 1, unit: '%', default: 100,
-      get: () => state.fxOpacity, set: (v) => setFxOpacity(v) },
+      options: effects.map((f) => ({ value: f.id, label: f.name, short: f.name.replace(/^Desfoque (de )?/, '').replace(/^./, (c) => c.toUpperCase()) })) },
   ];
+  const fxOpacity = { key: 'fxOpacity', label: 'Opacidade', type: 'range', min: 0, max: 100, step: 1, unit: '%', default: 100,
+    get: () => state.fxOpacity, set: (v) => setFxOpacity(v) };
+  if (!state.effect.params.some((d) => d.id === 'direction')) items.push(fxOpacity);
   for (const def of state.effect.params) {
     const [min, max] = def.range && state.loaded ? def.range(renderer.src.w, renderer.src.h) : [def.min, def.max];
     items.push({
-      key: def.id, label: def.chip || def.label, title: def.group ? `${def.group}: ${def.label}` : def.label,
-      type: def.type, options: def.options, min, max, step: def.step, unit: def.unit, default: def.default,
-      get: () => state.params[def.id], set: (v, live) => setParam(def.id, v, live, true),
+      key: def.id, label: def.group ? def.label : (def.chip || def.label), group: def.group,
+      type: def.type, options: def.options, min, max, step: def.step, unit: def.unit === '%' ? '%' : (def.unit ? ' ' + def.unit : ''),
+      default: def.default, get: () => state.params[def.id], set: (v, live) => setParam(def.id, v, live, true),
     });
+    // A opacidade do efeito vem logo depois da direção.
+    if (def.id === 'direction') items.push(fxOpacity);
   }
-  items.push({ key: 'preview', label: 'Prévia', title: 'Resolução da prévia', type: 'select', options: PREVIEW_OPTIONS,
+  items.push({ key: 'preview', label: 'Prévia', type: 'select', options: PREVIEW_OPTIONS,
     get: () => String(state.previewLong), set: (v) => setPreviewLong(v) });
   return items;
 }
@@ -1018,13 +1026,13 @@ function muiMaskItems() {
   return [
     { key: 'mode', label: 'Pincel', type: 'select', get: () => lastBrushTool, set: (v) => setTool(v),
       options: [{ value: 'add', label: '+ Marcar' }, { value: 'sub', label: '− Desmarcar' }] },
-    { key: 'size', label: 'Tamanho', type: 'range', min: 1, max: 3000, step: 1, unit: 'px', default: 250,
+    { key: 'size', label: 'Tamanho', type: 'range', min: 1, max: 3000, step: 1, unit: ' px', default: 250, log: true,
       get: () => state.brush.size, set: (v) => setBrush('size', v) },
     { key: 'hardness', label: 'Dureza', type: 'range', min: 0, max: 100, step: 1, unit: '%', default: 30,
       get: () => state.brush.hardness, set: (v) => setBrush('hardness', v) },
     { key: 'flow', label: 'Fluxo', type: 'range', min: 1, max: 100, step: 1, unit: '%', default: 100,
       get: () => state.brush.flow, set: (v) => setBrush('flow', v) },
-    { key: 'maskOpacity', label: 'Opacidade', title: 'Opacidade da máscara', type: 'range', min: 0, max: 100, step: 1, unit: '%', default: 100,
+    { key: 'maskOpacity', label: 'Opacidade da máscara', type: 'range', min: 0, max: 100, step: 1, unit: '%', default: 100,
       get: () => state.maskOpacity, set: (v) => setMaskOpacity(v) },
     { key: 'show', label: 'Ver área', type: 'toggle', get: () => state.showMask, set: (v) => setShowMask(v) },
     { key: 'invert', label: 'Inverter', type: 'action', run: () => { maskOp(() => mask.invert()); toast('Máscara invertida', 1200); } },
@@ -1032,92 +1040,90 @@ function muiMaskItems() {
   ];
 }
 
-function chipValue(it) {
-  const v = it.get?.();
-  if (it.type === 'range') return Math.round(v * 10) / 10 + (it.unit === '%' ? '%' : '');
-  if (it.type === 'select') {
-    const o = it.options.find((o) => o.value === v);
-    return o ? (o.short || o.label) : '';
-  }
-  if (it.type === 'toggle') return v ? 'Ligado' : 'Desligado';
-  return '';
-}
-
-/** Remonta chips e editor (troca de aba, de efeito ou nova foto). */
-function muiBuild() {
-  muiReady = true;
-  muiItems = muiTab === 'effect' ? muiEffectItems() : muiMaskItems();
-  const selectable = (it) => it.type === 'range' || it.type === 'select';
-  if (!muiItems.some((it) => it.key === muiSelected[muiTab] && selectable(it))) {
-    muiSelected[muiTab] = muiItems.find(selectable).key;
-  }
-  muiChips.replaceChildren(...muiItems.map((it) => {
+function muiSegRow(it) {
+  const row = document.createElement('div');
+  row.className = 'mrow';
+  const label = document.createElement('div');
+  label.className = 'mrow-label';
+  label.textContent = it.label;
+  const seg = document.createElement('div');
+  seg.className = 'mrow-seg';
+  seg.setAttribute('role', 'group');
+  seg.setAttribute('aria-label', it.label);
+  for (const o of it.options) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'chip chip-' + it.type;
-    b.dataset.key = it.key;
-    b.innerHTML = '<span class="chip-label"></span><span class="chip-value"></span>';
-    b.querySelector('.chip-label').textContent = it.label;
-    b.addEventListener('click', () => {
-      if (it.type === 'action') return it.run();
-      if (it.type === 'toggle') return it.set(!it.get());
-      muiSelected[muiTab] = it.key;
-      muiBuildEditor();
-      muiRefresh();
-      b.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
-    });
-    return b;
-  }));
-  muiBuildEditor();
+    b.dataset.value = o.value;
+    b.textContent = o.short || o.label;
+    b.addEventListener('click', () => it.set(o.value));
+    seg.append(b);
+  }
+  row.append(label, seg);
+  return { row, seg };
+}
+
+/** Monta a lista empilhada da aba (troca de aba, de efeito ou nova foto). */
+function muiBuild() {
+  muiReady = true;
+  const items = muiTab === 'effect' ? muiEffectItems() : muiMaskItems();
+  muiRows = [];
+  const frag = document.createDocumentFragment();
+  const groups = new Map();
+  let actions = null;
+  for (const it of items) {
+    let node;
+    if (it.type === 'range') {
+      const ctl = touchSlider({ label: it.label, min: it.min, max: it.max, step: it.step, unit: it.unit || '',
+        value: it.get(), default: it.default, log: it.log, onInput: (v, live) => it.set(v, live) });
+      muiRows.push({ it, ctl });
+      node = ctl.el;
+    } else if (it.type === 'select') {
+      const { row, seg } = muiSegRow(it);
+      muiRows.push({ it, seg });
+      node = row;
+    } else {
+      if (!actions) { actions = document.createElement('div'); actions.className = 'mrow-actions'; }
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mbtn' + (it.type === 'toggle' ? ' toggle' : '');
+      btn.textContent = it.label;
+      btn.addEventListener('click', () => (it.type === 'toggle' ? it.set(!it.get()) : it.run()));
+      muiRows.push({ it, btn });
+      actions.append(btn);
+      continue;
+    }
+    if (it.group) {
+      let g = groups.get(it.group);
+      if (!g) {
+        const d = document.createElement('details');
+        d.className = 'mgroup';
+        d.open = muiOpenGroups.has(it.group);
+        d.addEventListener('toggle', () => { if (d.open) muiOpenGroups.add(it.group); else muiOpenGroups.delete(it.group); });
+        const sum = document.createElement('summary');
+        sum.textContent = it.group;
+        g = document.createElement('div');
+        d.append(sum, g);
+        frag.append(d);
+        groups.set(it.group, g);
+      }
+      g.append(node);
+    } else {
+      frag.append(node);
+    }
+  }
+  if (actions) frag.insertBefore(actions, frag.children[1] || null); // ações logo abaixo do seletor do pincel
+  muiList.replaceChildren(frag);
   muiRefresh();
 }
 
-function muiBuildEditor() {
-  const it = muiItems.find((i) => i.key === muiSelected[muiTab]);
-  muiEditor.replaceChildren();
-  muiEditorState = null;
-  if (!it) return;
-  if (it.type === 'range') {
-    const ctl = slider({
-      label: it.title || it.label, min: it.min, max: it.max, step: it.step, unit: it.unit === '%' ? '%' : it.unit,
-      value: it.get(), default: it.default, onInput: (v, live) => it.set(v, live),
-    });
-    muiEditor.append(ctl.el);
-    muiEditorState = { it, ctl };
-  } else {
-    const seg = document.createElement('div');
-    seg.className = 'mui-seg';
-    seg.setAttribute('role', 'group');
-    seg.setAttribute('aria-label', it.title || it.label);
-    for (const o of it.options) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.dataset.value = o.value;
-      b.textContent = o.short || o.label;
-      b.addEventListener('click', () => it.set(o.value));
-      seg.append(b);
-    }
-    const title = document.createElement('div');
-    title.className = 'mui-title';
-    title.textContent = it.title || it.label;
-    muiEditor.append(title, seg);
-    muiEditorState = { it, seg };
-  }
-}
-
-/** Atualiza valores mostrados (chamada sempre que algo muda, por qualquer caminho). */
+/** Atualiza os valores mostrados (chamada sempre que algo muda, por qualquer caminho). */
 function muiRefresh() {
   if (!muiReady) return;
-  for (const b of muiChips.children) {
-    const it = muiItems.find((i) => i.key === b.dataset.key);
-    if (!it) continue;
-    b.querySelector('.chip-value').textContent = chipValue(it);
-    b.classList.toggle('selected', it.key === muiSelected[muiTab]);
-    b.classList.toggle('on', it.type === 'toggle' && !!it.get());
+  for (const r of muiRows) {
+    if (r.ctl) r.ctl.set(r.it.get());
+    if (r.seg) for (const b of r.seg.children) b.classList.toggle('active', b.dataset.value === String(r.it.get()));
+    if (r.btn && r.it.type === 'toggle') r.btn.classList.toggle('on', !!r.it.get());
   }
-  const ed = muiEditorState;
-  if (ed?.ctl) ed.ctl.set(ed.it.get());
-  if (ed?.seg) for (const b of ed.seg.children) b.classList.toggle('active', b.dataset.value === String(ed.it.get()));
 }
 
 /** Tocar na aba ativa recolhe/abre o painel. */
@@ -1127,7 +1133,7 @@ function muiSetTab(tab, forceOpen = false) {
     const changed = tab !== muiTab;
     muiTab = tab;
     muiOpen = true;
-    if (changed || !muiItems.length) muiBuild();
+    if (changed) { muiBuild(); muiList.scrollTop = 0; }
   }
   muiApply();
 }
@@ -1142,21 +1148,21 @@ function muiApply() {
 for (const b of mui.querySelectorAll('.mtabs [data-tab]')) b.addEventListener('click', () => muiSetTab(b.dataset.tab));
 $('#muiHandle').addEventListener('click', () => { muiOpen = !muiOpen; muiApply(); });
 
-// Arrastar o painel para baixo recolhe; para cima abre (fora de sliders e da fileira de chips rolando).
+// Arrastar a alça ou as abas para baixo recolhe; para cima abre. (A lista rola normalmente.)
 {
   let sw = null;
   mui.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('input, select')) return;
+    if (!e.target.closest('.mui-handle, .mtabs')) return;
     sw = { x: e.clientX, y: e.clientY, id: e.pointerId, done: false };
   });
   mui.addEventListener('pointermove', (e) => {
     if (!sw || sw.id !== e.pointerId || sw.done) return;
     const dx = e.clientX - sw.x, dy = e.clientY - sw.y;
-    if (Math.abs(dy) < 28 || Math.abs(dy) < Math.abs(dx) * 1.4) return;
+    if (Math.abs(dy) < 24 || Math.abs(dy) < Math.abs(dx) * 1.4) return;
     sw.done = true;
     const open = dy < 0;
     if (open !== muiOpen) { muiOpen = open; muiApply(); }
-    // O toque que terminou o arraste não deve virar "clique" numa aba ou chip.
+    // O toque que terminou o arraste não deve virar "clique" numa aba.
     const block = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
     mui.addEventListener('click', block, { capture: true, once: true });
     setTimeout(() => mui.removeEventListener('click', block, { capture: true }), 400);
