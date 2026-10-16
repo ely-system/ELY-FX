@@ -213,7 +213,10 @@ export class MaskLayer {
   }
 }
 
-/** Histórico de desfazer/refazer da máscara, com limite de memória. */
+/**
+ * Histórico de desfazer/refazer, com limite de memória.
+ * Entradas da máscara têm { rect, before, after }; outras (ex.: ponto de origem) trazem undo()/redo().
+ */
 export class MaskHistory {
   constructor(mask, limitBytes = 400 * 1024 * 1024) {
     this.mask = mask;
@@ -235,17 +238,19 @@ export class MaskHistory {
   undo() {
     const e = this.undoStack.pop();
     if (!e) return false;
-    this.mask.writeRect(e.rect, e.before);
+    if (e.undo) e.undo();
+    else this.mask.writeRect(e.rect, e.before);
     this.redoStack.push(e);
     return true;
   }
   redo() {
     const e = this.redoStack.pop();
     if (!e) return false;
-    this.mask.writeRect(e.rect, e.after);
+    if (e.redo) e.redo();
+    else this.mask.writeRect(e.rect, e.after);
     this.undoStack.push(e);
     return true;
   }
 }
 
-function size(e) { return e.before.length + e.after.length; }
+function size(e) { return e.rect ? e.before.length + e.after.length : 64; }

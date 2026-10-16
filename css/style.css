@@ -289,7 +289,6 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
     position: fixed; top: 0; left: 0; right: 0; z-index: 6; height: auto; min-height: 0;
     padding: env(safe-area-inset-top) 8px 0; padding-bottom: 4px; padding-top: calc(env(safe-area-inset-top) + 4px);
     background: var(--glass); border-bottom: 0;
-    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
   .brand span { display: none; }
   .top-actions { gap: 2px; }
@@ -385,6 +384,7 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   .zoombar {
     left: 8px; bottom: auto; top: calc(var(--inset-top, 52px) + 8px);
     background: var(--glass); border-color: rgba(255,255,255,.08);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
   }
   .zoombar button { height: 32px; min-width: 32px; font-size: 13px; }
   #zoomIn, #zoomOut, #zoomLabel, #zoom100, #btnCompare, .zb-sep { display: none; }

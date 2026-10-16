@@ -140,7 +140,11 @@ function buildEffectControls() {
   const groups = new Map();
   if (!state.effect.params.some((d) => d.id === 'direction')) host.append(fxOpacityControl.el);
   for (const def of state.effect.params) {
-    const onInput = (v, live) => setParam(def.id, v, live);
+    const onInput = (v, live) => {
+      if (isOriginParam(def.id)) beginOriginEdit();
+      setParam(def.id, v, live);
+      if (isOriginParam(def.id) && !live) commitOriginEdit();
+    };
     let c;
     if (def.type === 'select') {
       c = select({ ...def, value: state.params[def.id], onInput });
@@ -176,6 +180,28 @@ function buildEffectControls() {
     g.append(c.el);
   }
 }
+
+// ---- Ponto de origem no histórico (Ctrl+Z / seta de voltar) ----
+// Uma "edição de origem" começa no primeiro movimento (arrastar na foto, tocar, slider) e
+// vira uma entrada de desfazer quando termina, se a posição mudou.
+let originEdit = null;
+
+function beginOriginEdit() {
+  if (!originEdit && state.effect.originParams) originEdit = { ox: state.params.ox, oy: state.params.oy };
+}
+
+function commitOriginEdit() {
+  const before = originEdit;
+  originEdit = null;
+  if (!before) return;
+  const after = { ox: state.params.ox, oy: state.params.oy };
+  if (before.ox === after.ox && before.oy === after.oy) return;
+  const apply = (o) => { for (const k in o) setParam(k, o[k], false, true); };
+  history.push({ undo: () => apply(before), redo: () => apply(after) });
+  updateHistoryButtons();
+}
+
+const isOriginParam = (id) => id === 'ox' || id === 'oy';
 
 function setParam(id, v, live = false, syncUI = false) {
   state.params[id] = v;
@@ -464,6 +490,7 @@ function cancelSingleAction() {
   if (drag.type === 'paint') mask.cancelStroke();
   if (drag.type === 'center' && drag.before) {
     for (const k in drag.before) setParam(k, drag.before[k], false, true);
+    originEdit = null;
   }
   if (drag.type === 'pan') setPanning(false);
 }
@@ -478,6 +505,7 @@ function startAction(p) {
     }
     const before = state.effect.originParams ? { ox: state.params.ox, oy: state.params.oy } : null;
     drag = { type: 'center', before };
+    beginOriginEdit();
     moveCenter(p, true);
   } else {
     beginPaint(p);
@@ -575,6 +603,7 @@ function endPointer(e) {
     updateHistoryButtons();
   } else if (drag.type === 'center') {
     state.live = false;
+    commitOriginEdit();
     requestRender(true);
   }
   if (drag.type === 'pan') setPanning(false);
@@ -796,8 +825,9 @@ function updateHistoryButtons() {
   $('#btnUndo').disabled = !history.canUndo;
   $('#btnRedo').disabled = !history.canRedo;
 }
-function undo() { if (drag?.type !== 'paint' && history.undo()) { updateHistoryButtons(); requestRender(); } }
-function redo() { if (drag?.type !== 'paint' && history.redo()) { updateHistoryButtons(); requestRender(); } }
+const busy = () => drag?.type === 'paint' || drag?.type === 'center';
+function undo() { if (!busy() && history.undo()) { updateHistoryButtons(); requestRender(); } }
+function redo() { if (!busy() && history.redo()) { updateHistoryButtons(); requestRender(); } }
 $('#btnUndo').addEventListener('click', undo);
 $('#btnRedo').addEventListener('click', redo);
 
@@ -1012,7 +1042,12 @@ function muiEffectItems() {
     items.push({
       key: def.id, label: def.group ? def.label : (def.chip || def.label), group: def.group,
       type: def.type, options: def.options, min, max, step: def.step, unit: def.unit === '%' ? '%' : (def.unit ? ' ' + def.unit : ''),
-      default: def.default, get: () => state.params[def.id], set: (v, live) => setParam(def.id, v, live, true),
+      default: def.default, get: () => state.params[def.id],
+      set: (v, live) => {
+        if (isOriginParam(def.id)) beginOriginEdit();
+        setParam(def.id, v, live, true);
+        if (isOriginParam(def.id) && !live) commitOriginEdit();
+      },
     });
     // A opacidade do efeito vem logo depois da direção.
     if (def.id === 'direction') items.push(fxOpacity);
