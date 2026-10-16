@@ -164,10 +164,10 @@ buildEffectControls();
 
 const brushControls = {
   size: slider({ label: 'Tamanho', min: 1, max: 3000, step: 1, value: state.brush.size, default: 250, unit: 'px',
-    tip: 'Diâmetro do pincel em pixels da foto. Atalho: [ e ]',
+    tip: 'Diâmetro do pincel em pixels da foto. Atalhos: Alt + roda do mouse, ou [ e ]',
     onInput: (v) => { state.brush.size = v; updateCursor(); } }),
   hardness: slider({ label: 'Dureza', min: 0, max: 100, value: state.brush.hardness, default: 30, unit: '%',
-    tip: 'Borda do pincel: 0% bem suave, 100% borda definida. Atalho: Shift + [ e ]',
+    tip: 'Borda do pincel: 0% bem suave, 100% borda definida. Atalhos: Alt + botão direito + arrastar, ou Shift + [ e ]',
     onInput: (v) => { state.brush.hardness = v; updateCursor(); } }),
   flow: slider({ label: 'Fluxo', min: 1, max: 100, value: state.brush.flow, default: 100, unit: '%',
     tip: 'Quanto cada passada deposita. Fluxo baixo marca aos poucos, acumulando enquanto você pinta. Atalho: teclas 1…0',
@@ -323,7 +323,12 @@ stage.addEventListener('pointerdown', (e) => {
   }
   if (pointers.size > 2) return;
 
-  if (e.button === 1 || state.space || state.tool === 'pan') {
+  if (isBrush() && e.altKey && e.button === 2) {
+    // Alt + botão direito + arrastar: ajusta a dureza (direita/cima = mais dura).
+    drag = { type: 'hardness', start: p, h0: state.brush.hardness };
+    lastPointer = p;
+    updateCursor();
+  } else if (e.button === 1 || state.space || state.tool === 'pan') {
     drag = { type: 'pan', last: p };
     setPanning(true);
   } else if (e.button !== 0) {
@@ -338,6 +343,13 @@ stage.addEventListener('pointerdown', (e) => {
 
 stage.addEventListener('pointermove', (e) => {
   const p = local(e);
+  if (drag?.type === 'hardness') {
+    // O círculo do pincel fica parado onde o ajuste começou.
+    const delta = (p[0] - drag.start[0]) - (p[1] - drag.start[1]);
+    setBrush('hardness', Math.round(drag.h0 + delta * 0.4));
+    toast('Dureza ' + state.brush.hardness + '%', 900);
+    return;
+  }
   lastPointer = p;
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, p);
   updateCursor();
@@ -382,7 +394,8 @@ stage.addEventListener('pointercancel', (e) => {
   if (drag?.type === 'paint') { mask.cancelStroke(); drag = null; requestRender(); }
   endPointer(e);
 });
-stage.addEventListener('pointerleave', () => { lastPointer = null; updateCursor(); });
+stage.addEventListener('contextmenu', (e) => { if (state.loaded) e.preventDefault(); });
+stage.addEventListener('pointerleave',() => { lastPointer = null; updateCursor(); });
 
 function setPanning(on) {
   panning = on;
@@ -461,6 +474,15 @@ stage.addEventListener('wheel', (e) => {
   const [sx, sy] = local(e);
   const unit = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1;
   const dy = e.deltaY * unit;
+  if (e.altKey && isBrush()) {
+    // Alt + roda: tamanho do pincel (para cima = maior), proporcional ao tamanho atual.
+    const s = state.brush.size;
+    let next = Math.round(s * Math.exp(-dy * 0.0015));
+    if (next === s && dy !== 0) next = s + (dy < 0 ? 1 : -1);
+    setBrush('size', next);
+    toast('Tamanho ' + state.brush.size + ' px', 900);
+    return;
+  }
   // Trackpad sem Ctrl → desloca; roda do mouse ou pinça do trackpad (Ctrl) → zoom.
   const isTrackpadPan = !e.ctrlKey && Math.abs(e.deltaX) > 0 && e.deltaMode === 0;
   if (isTrackpadPan) view.pan(-e.deltaX, -dy);
@@ -619,6 +641,8 @@ window.addEventListener('keydown', (e) => {
     else if (k === '-') { e.preventDefault(); zoomCentered(view.step(-1)); }
     return;
   }
+  // Impede que o Alt sozinho ative o menu do navegador enquanto se usa os atalhos do pincel.
+  if (e.key === 'Alt' && state.loaded) { e.preventDefault(); return; }
   if (isTyping(e) || e.altKey) return;
 
   if (e.code === 'Space') {
@@ -654,6 +678,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('keyup', (e) => {
+  if (e.key === 'Alt' && state.loaded) e.preventDefault();
   if (e.code === 'Space') { state.space = false; stage.classList.remove('space'); updateCursor(); }
   if (e.code === 'Backslash' || e.code === 'IntlBackslash') setCompareHold(false);
 });

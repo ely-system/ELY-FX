@@ -241,7 +241,7 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
 
 .shortcuts summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .shortcuts dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 10px 0 0; font-size: 12px; }
-.shortcuts dt { color: var(--text); font-family: ui-monospace, Consolas, monospace; font-size: 11px; white-space: nowrap; }
+.shortcuts dt { color: var(--text); font-family: ui-monospace, Consolas, monospace; font-size: 11px; max-width: 130px; }
 .shortcuts dd { margin: 0; color: var(--muted); }
 
 /* ---------- Dialog ---------- */
