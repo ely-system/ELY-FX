@@ -195,13 +195,15 @@ export class Renderer {
   }
 
   /** Renderiza em resolução total e devolve ImageData. */
-  exportImage(effect, params, mask, maskOpacity) {
+  exportImage(effect, params, mask, maskOpacity, { lowMemory = false } = {}) {
     const gl = this.gl;
     const { w, h } = this.src;
     const temps = [];
     const target = (fmt) => { const t = createTarget(gl, w, h, fmt); temps.push(t); return t; };
     try {
-      const pool = [target(this.fmtWork), target(this.fmtWork)];
+      // Em aparelhos com pouca memória usa buffers de 8 bits (metade da memória).
+      const work = lowMemory ? this.fmt8 : this.fmtWork;
+      const pool = [target(work), target(work)];
       const fxTex = effect.render(this, this.src, w, h, params, (i) => pool[i % 2]);
       const out = target(this.fmt8);
       if (this._magNearest) {

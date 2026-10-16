@@ -4,8 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>ELY FX</title>
-  <meta name="description" content="Efeitos fotográficos direto no navegador, sem Photoshop. Desfoque radial (giro e zoom) com máscara pintável.">
-  <meta name="theme-color" content="#1b1b1b">
+  <meta name="description" content="Efeitos fotográficos direto no navegador, sem Photoshop. Desfoque radial e de zoom com máscara pintável.">
+  <meta name="theme-color" content="#1c1c1c">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="ELY FX">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -16,13 +20,16 @@
       <span>ELY <b>FX</b></span>
     </div>
     <div class="top-actions">
-      <button id="btnOpen" class="btn">Abrir foto</button>
-      <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/avif,image/gif,image/bmp" hidden>
+      <button id="btnOpen" class="btn" title="Abrir foto (Ctrl+O)">
+        <svg class="m-icon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5L6 19"/></svg>
+        <span>Abrir foto</span>
+      </button>
+      <input type="file" id="fileInput" accept="image/*" hidden>
       <div class="divider"></div>
-      <button id="btnUndo" class="icon-btn" title="Desfazer (Ctrl+Z)" disabled>
+      <button id="btnUndo" class="icon-btn" title="Desfazer (Ctrl+Z)" aria-label="Desfazer" disabled>
         <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
       </button>
-      <button id="btnRedo" class="icon-btn" title="Refazer (Ctrl+Shift+Z)" disabled>
+      <button id="btnRedo" class="icon-btn" title="Refazer (Ctrl+Shift+Z)" aria-label="Refazer" disabled>
         <svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
       </button>
       <button id="btnExport" class="btn primary" disabled>Exportar</button>
@@ -66,17 +73,18 @@
         <div class="dz-inner">
           <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5L6 19"/></svg>
           <h1>Efeitos de foto sem Photoshop</h1>
-          <p>Arraste uma foto para cá ou</p>
+          <p class="d-only">Arraste uma foto para cá ou</p>
+          <p class="m-only">Escolha uma foto da galeria para começar.</p>
           <button class="btn primary" id="btnOpen2">Escolher foto</button>
-          <p class="small">JPEG, PNG, WebP ou AVIF. Tudo é processado no seu navegador — nada é enviado para servidor.</p>
+          <p class="small">Tudo é processado no seu aparelho — nada é enviado para servidor.</p>
         </div>
       </div>
       <div class="drop-hint" id="dropHint">Solte a foto para abrir</div>
 
       <div class="zoombar" id="zoombar" hidden>
-        <button id="zoomOut" title="Diminuir zoom (Ctrl −)">−</button>
+        <button id="zoomOut" title="Diminuir zoom (Ctrl −)" aria-label="Diminuir zoom">−</button>
         <span id="zoomLabel">100%</span>
-        <button id="zoomIn" title="Aumentar zoom (Ctrl +)">+</button>
+        <button id="zoomIn" title="Aumentar zoom (Ctrl +)" aria-label="Aumentar zoom">+</button>
         <button id="zoomFit" title="Ajustar à tela (Ctrl+0)">Ajustar</button>
         <button id="zoom100" title="Tamanho real (Ctrl+1)">1:1</button>
         <span class="zb-sep"></span>
@@ -86,27 +94,35 @@
       <div class="toast" id="toast" role="status"></div>
     </section>
 
-    <aside class="panel">
-      <section class="card">
+    <aside class="panel" id="panel" data-tab="effect">
+      <button class="sheet-handle m-only" id="sheetHandle" aria-label="Recolher painel"><span></span></button>
+
+      <section class="card" data-tab="effect">
         <div class="card-head">
           <h2>Efeito</h2>
           <button id="btnResetParams" class="link-btn" title="Restaurar valores padrão">Redefinir</button>
         </div>
         <select id="effectSelect" class="effect-select" aria-label="Efeito"></select>
+        <p class="hint m-only">Toque e arraste na foto para mover o ponto de origem. Dois dedos: zoom e mover.</p>
         <div id="effectParams" class="controls"></div>
       </section>
 
-      <section class="card">
+      <section class="card" data-tab="mask">
         <div class="card-head">
           <h2>Máscara</h2>
           <label class="switch" title="Mostrar a área marcada em vermelho (M)">
             <input type="checkbox" id="showMask"><span></span> Ver área marcada
           </label>
         </div>
-        <p class="hint">
+        <div class="seg m-only" role="group" aria-label="Pincel">
+          <button data-tool="add"><b>+</b> Marcar</button>
+          <button data-tool="sub"><b>−</b> Desmarcar</button>
+        </div>
+        <p class="hint d-only">
           Use o pincel <b class="sign">+</b> da barra de ferramentas para <b>marcar</b> as áreas onde o efeito não deve aparecer,
           e o pincel <b class="sign">−</b> para <b>desmarcar</b>. Atalhos: B e E (X alterna).
         </p>
+        <p class="hint m-only">Pinte com um dedo as áreas onde o efeito <b>não</b> deve aparecer. Dois dedos: zoom e mover.</p>
         <div id="brushParams" class="controls"></div>
         <div class="card-sub"></div>
         <div id="maskParams" class="controls"></div>
@@ -116,7 +132,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section class="card" data-tab="effect">
         <div class="card-head"><h2>Prévia</h2></div>
         <div id="previewParams" class="controls"></div>
         <p class="hint" id="imgInfo">Nenhuma foto aberta.</p>
@@ -145,24 +161,45 @@
         </dl>
       </details>
     </aside>
+
+    <nav class="mtabs m-only" aria-label="Seções">
+      <button data-tab="effect" class="active">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M12 4a8 8 0 0 1 8 8M12 20a8 8 0 0 1-8-8"/><path d="M12 7.5a4.5 4.5 0 0 1 4.5 4.5M12 16.5A4.5 4.5 0 0 1 7.5 12"/></svg>
+        <span>Efeito</span>
+      </button>
+      <button data-tab="mask">
+        <svg viewBox="0 0 24 24"><path d="M18.4 3.6a2 2 0 0 1 2.8 2.8L12 15.6 8.4 12z"/><path d="M8.4 12C5.5 12 4 14 4 16.5c0 1.6-.8 2.8-2 3.5 4.6.7 9-.6 10-4.4"/></svg>
+        <span>Máscara</span>
+      </button>
+    </nav>
   </main>
 
   <dialog id="exportDialog" class="dialog">
     <form method="dialog">
       <h3>Exportar foto</h3>
       <p class="hint" id="expInfo"></p>
-      <label class="field">Formato
-        <select id="expFormat">
-          <option value="image/jpeg">JPEG</option>
-          <option value="image/png">PNG (sem perdas)</option>
-          <option value="image/webp">WebP</option>
-        </select>
-      </label>
-      <div id="expQuality" class="controls"></div>
-      <p class="hint small">Os metadados EXIF não são preservados no arquivo exportado.</p>
-      <div class="dialog-actions">
-        <button value="cancel" class="btn ghost">Cancelar</button>
-        <button id="expGo" class="btn primary" value="default">Baixar</button>
+      <div id="expOptions">
+        <label class="field">Formato
+          <select id="expFormat">
+            <option value="image/jpeg">JPEG</option>
+            <option value="image/png">PNG (sem perdas)</option>
+            <option value="image/webp">WebP</option>
+          </select>
+        </label>
+        <div id="expQuality" class="controls"></div>
+        <p class="hint small">Os metadados EXIF não são preservados no arquivo exportado.</p>
+        <div class="dialog-actions">
+          <button value="cancel" class="btn ghost">Cancelar</button>
+          <button id="expGo" class="btn primary" value="default">Baixar</button>
+        </div>
+      </div>
+      <div id="expReady" hidden>
+        <p class="ready-msg">Foto pronta.</p>
+        <div class="dialog-actions stacked">
+          <button id="expShare" class="btn primary" type="button">Salvar na galeria / Compartilhar</button>
+          <button id="expDownload" class="btn" type="button">Baixar arquivo</button>
+          <button value="cancel" class="btn ghost">Fechar</button>
+        </div>
       </div>
     </form>
   </dialog>

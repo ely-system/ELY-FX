@@ -24,7 +24,10 @@ try {
   document.body.append(d);
   throw err;
 }
-const mask = new MaskLayer(renderer);
+// Celulares e tablets têm menos memória de vídeo: máscara e prévia menores.
+const coarse = matchMedia('(pointer: coarse)').matches;
+const mobileLayout = matchMedia('(max-width: 860px)');
+const mask = new MaskLayer(renderer, coarse ? 2560 : 4096);
 const history = new MaskHistory(mask);
 const view = new Viewport();
 
@@ -40,12 +43,15 @@ const state = {
   compare: false,      // modo antes/depois ligado pelo botão
   compareHold: false,  // tecla \ segurada
   space: false,
-  previewLong: 2048,
+  previewLong: coarse ? 1280 : 2048,
   live: false, // usuário arrastando um controle → prévia rápida
 };
 
 let fxDirty = true;
 let raf = 0;
+let lastPointer = null;      // posição do ponteiro sobre o palco (null = fora)
+let brushPreview = false;    // prévia vermelha do pincel visível por um instante
+let brushPreviewTimer = 0;
 
 function requestRender(fx = false) {
   if (fx) fxDirty = true;
@@ -165,10 +171,10 @@ buildEffectControls();
 const brushControls = {
   size: slider({ label: 'Tamanho', min: 1, max: 3000, step: 1, value: state.brush.size, default: 250, unit: 'px',
     tip: 'Diâmetro do pincel em pixels da foto. Atalhos: Alt + roda do mouse, ou [ e ]',
-    onInput: (v) => { state.brush.size = v; updateCursor(); } }),
+    onInput: (v) => { state.brush.size = v; flashBrushPreview(); } }),
   hardness: slider({ label: 'Dureza', min: 0, max: 100, value: state.brush.hardness, default: 30, unit: '%',
     tip: 'Borda do pincel: 0% bem suave, 100% borda definida. Atalhos: Alt + botão direito + arrastar, ou Shift + [ e ]',
-    onInput: (v) => { state.brush.hardness = v; updateCursor(); } }),
+    onInput: (v) => { state.brush.hardness = v; flashBrushPreview(); } }),
   flow: slider({ label: 'Fluxo', min: 1, max: 100, value: state.brush.flow, default: 100, unit: '%',
     tip: 'Quanto cada passada deposita. Fluxo baixo marca aos poucos, acumulando enquanto você pinta. Atalho: teclas 1…0',
     onInput: (v) => { state.brush.flow = v; } }),
@@ -186,7 +192,8 @@ function setBrush(key, v) {
   const c = brushControls[key];
   c.set(v);
   state.brush[key] = c.get();
-  updateCursor();
+  if (key === 'size' || key === 'hardness') flashBrushPreview();
+  else updateCursor();
   requestRender();
 }
 
@@ -236,8 +243,11 @@ $('#previewParams').append(select({
 // Ferramentas
 // ---------------------------------------------------------------------------
 
+let lastBrushTool = 'add';
+
 function setTool(tool) {
   state.tool = tool;
+  if (tool === 'add' || tool === 'sub') lastBrushTool = tool;
   for (const b of document.querySelectorAll('[data-tool]')) b.classList.toggle('active', b.dataset.tool === tool);
   stage.classList.remove('tool-center', 'tool-add', 'tool-sub', 'tool-pan');
   stage.classList.add('tool-' + tool);
@@ -280,20 +290,27 @@ function updateOverlay() {
   });
 }
 
-let lastPointer = null;
+/** Mostra por um instante o pincel com o degradê vermelho (no ponteiro ou no centro da foto). */
+function flashBrushPreview() {
+  brushPreview = true;
+  clearTimeout(brushPreviewTimer);
+  brushPreviewTimer = setTimeout(() => { brushPreview = false; updateCursor(); }, 900);
+  updateCursor();
+}
 
 function updateCursor() {
   const d = state.brush.size * view.scale;
-  const show = state.loaded && isBrush() && lastPointer && !state.space && !panning;
+  const pos = lastPointer || (brushPreview ? [stage.clientWidth / 2, stage.clientHeight / 2] : null);
+  const show = state.loaded && (isBrush() || brushPreview) && pos && !state.space && !panning;
   cursorEl.classList.toggle('visible', !!show && d >= 4);
   stage.classList.toggle('small-brush', d < 4);
   if (!show) return;
   cursorEl.style.width = cursorEl.style.height = d + 'px';
-  cursorEl.style.left = lastPointer[0] + 'px';
-  cursorEl.style.top = lastPointer[1] + 'px';
+  cursorEl.style.left = pos[0] + 'px';
+  cursorEl.style.top = pos[1] + 'px';
   cursorEl.style.setProperty('--inner', (d * state.brush.hardness / 100) + 'px');
-  // Ao ajustar a dureza, mostra o degradê real da ponta do pincel em vermelho (como no Photoshop).
-  const preview = drag?.type === 'hardness';
+  // Ao ajustar tamanho/dureza, mostra o degradê real da ponta do pincel em vermelho (como no Photoshop).
+  const preview = drag?.type === 'hardness' || (brushPreview && drag?.type !== 'paint');
   cursorEl.classList.toggle('preview', preview);
   cursorEl.style.background = preview ? falloffGradient(state.brush.hardness / 100) : '';
 }
@@ -334,6 +351,9 @@ stage.addEventListener('pointerdown', (e) => {
 
   if (pointers.size === 2) {
     if (drag?.type === 'paint') mask.cancelStroke();
+    if (drag?.type === 'center' && drag.before) {
+      for (const k in drag.before) setParam(k, drag.before[k], false, true);
+    }
     startPinch();
     requestRender();
     return;
@@ -351,7 +371,8 @@ stage.addEventListener('pointerdown', (e) => {
   } else if (e.button !== 0) {
     drag = null;
   } else if (state.tool === 'center') {
-    drag = { type: 'center' };
+    const before = state.effect.originParams ? { ox: state.params.ox, oy: state.params.oy } : null;
+    drag = { type: 'center', before };
     moveCenter(p, true);
   } else {
     beginPaint(p);
@@ -391,7 +412,7 @@ function endPointer(e) {
   if (!pointers.has(e.pointerId)) return;
   pointers.delete(e.pointerId);
   if (drag?.type === 'pinch') {
-    if (pointers.size < 2) drag = null;
+    if (pointers.size < 2) { drag = null; state.live = false; requestRender(true); }
     return;
   }
   if (!drag) return;
@@ -404,6 +425,7 @@ function endPointer(e) {
   }
   if (drag.type === 'pan') setPanning(false);
   drag = null;
+  if (e.pointerType !== 'mouse') lastPointer = null;
   updateCursor();
   requestRender();
 }
@@ -497,6 +519,7 @@ stage.addEventListener('wheel', (e) => {
     const s = state.brush.size;
     let next = Math.round(s * Math.exp(-dy * 0.0015));
     if (next === s && dy !== 0) next = s + (dy < 0 ? 1 : -1);
+    lastPointer = [sx, sy];
     setBrush('size', next);
     toast('Tamanho ' + state.brush.size + ' px', 900);
     return;
@@ -594,6 +617,7 @@ async function openFile(file) {
     $('#zoombar').hidden = false;
     stage.classList.remove('empty');
     $('#btnExport').disabled = false;
+    if (mobileLayout.matches) setTab('effect', true);
     $('#imgInfo').textContent = `${state.fileName} — ${w} × ${h} px` + (mask.scale < 1 ? ` · máscara ${mask.w} × ${mask.h} px` : '');
     updateZoomLabel();
     requestRender(true);
@@ -720,11 +744,46 @@ expFormat.addEventListener('change', () => { expQuality.el.hidden = expFormat.va
 
 $('#btnExport').addEventListener('click', openExport);
 
+let exported = null; // { blob, file, name } pronto para salvar/compartilhar
+
 function openExport() {
   if (!state.loaded || dlg.open) return;
   $('#expInfo').textContent = `${renderer.src.w} × ${renderer.src.h} px, resolução total.`;
+  $('#expOptions').hidden = false;
+  $('#expReady').hidden = true;
+  $('#expGo').textContent = goLabel();
+  exported = null;
   dlg.showModal();
 }
+
+const canShareFiles = () => coarse && typeof navigator.canShare === 'function';
+const goLabel = () => (canShareFiles() ? 'Exportar' : 'Baixar');
+
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+$('#expShare').addEventListener('click', async () => {
+  if (!exported) return;
+  try {
+    await navigator.share({ files: [exported.file], title: exported.name });
+    dlg.close();
+  } catch (err) {
+    if (err.name !== 'AbortError') toast('Não foi possível compartilhar. Use “Baixar arquivo”.', 4000);
+  }
+});
+$('#expDownload').addEventListener('click', () => {
+  if (!exported) return;
+  downloadBlob(exported.blob, exported.name);
+  dlg.close();
+  toast('Foto exportada.', 2000);
+});
 
 $('#expGo').addEventListener('click', async (e) => {
   e.preventDefault();
@@ -734,7 +793,7 @@ $('#expGo').addEventListener('click', async (e) => {
   await new Promise((r) => setTimeout(r, 30));
   try {
     const type = expFormat.value;
-    const img = renderer.exportImage(state.effect, state.params, mask, state.maskOpacity / 100);
+    const img = renderer.exportImage(state.effect, state.params, mask, state.maskOpacity / 100, { lowMemory: coarse });
     requestRender(true); // os buffers da prévia continuam válidos, mas o estado do GL mudou
     const c = document.createElement('canvas');
     c.width = img.width;
@@ -743,13 +802,17 @@ $('#expGo').addEventListener('click', async (e) => {
     const blob = await new Promise((res) => c.toBlob(res, type, expQuality.get() / 100));
     if (!blob) throw new Error('Falha ao codificar a imagem.');
     const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[type];
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${state.fileName}_elyfx.${ext}`;
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    const name = `${state.fileName}_elyfx.${ext}`;
+    const file = new File([blob], name, { type });
+    // No celular o menu de compartilhar permite "Salvar imagem" direto na galeria.
+    // Ele precisa de um toque novo do usuário, por isso aparece como um segundo botão.
+    if (coarse && navigator.canShare?.({ files: [file] })) {
+      exported = { blob, file, name };
+      $('#expOptions').hidden = true;
+      $('#expReady').hidden = false;
+      return;
+    }
+    downloadBlob(blob, name);
     dlg.close();
     toast('Foto exportada.', 2000);
   } catch (err) {
@@ -757,9 +820,43 @@ $('#expGo').addEventListener('click', async (e) => {
     toast('Erro ao exportar: ' + err.message, 6000);
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Baixar';
+    btn.textContent = goLabel();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Celular: abas Efeito / Máscara e painel deslizante
+// ---------------------------------------------------------------------------
+
+const panel = $('#panel');
+let mTab = 'effect';
+let sheetOpen = true;
+
+/** Tocar na aba ativa recolhe o painel para mostrar a foto inteira. */
+function setTab(tab, forceOpen = false) {
+  if (tab === mTab && sheetOpen && !forceOpen) sheetOpen = false;
+  else { mTab = tab; sheetOpen = true; }
+  applyTab();
+}
+
+function applyTab() {
+  panel.dataset.tab = mTab;
+  panel.classList.toggle('collapsed', !sheetOpen);
+  for (const b of document.querySelectorAll('.mtabs [data-tab]')) b.classList.toggle('active', b.dataset.tab === mTab);
+  // No celular a ferramenta segue a aba: Efeito = mover origem, Máscara = pincel.
+  if (mobileLayout.matches) setTool(mTab === 'mask' ? lastBrushTool : 'center');
+}
+
+for (const b of document.querySelectorAll('.mtabs [data-tab]')) b.addEventListener('click', () => setTab(b.dataset.tab));
+$('#sheetHandle').addEventListener('click', () => { sheetOpen = false; applyTab(); });
+mobileLayout.addEventListener('change', () => {
+  if (mobileLayout.matches) applyTab();
+  else panel.classList.remove('collapsed');
+});
+if (mobileLayout.matches) { sheetOpen = false; applyTab(); }
+
+// Safari (iOS) aplica zoom de página com gestos mesmo com touch-action; bloqueia fora dos controles.
+document.addEventListener('gesturestart', (e) => e.preventDefault());
 
 // ---------------------------------------------------------------------------
 // Utilidades

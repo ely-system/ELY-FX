@@ -257,17 +257,110 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
 
 .fatal { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; background: var(--bg); z-index: 10; font-size: 15px; }
 
-/* ---------- Responsivo ---------- */
+/* ---------- Elementos só de desktop / só de celular ---------- */
+.m-icon { display: none; }
+.dialog-actions.stacked { flex-direction: column; align-items: stretch; }
+.ready-msg { margin: 8px 0 4px; font-size: 15px; }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 3px; margin-bottom: 12px; }
+.seg button { height: 40px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; }
+.seg button b { font-size: 17px; margin-right: 4px; }
+.seg button.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+/* Depois dos componentes acima, para que .m-only vença no desktop. */
+.m-only { display: none; }
+
+/* ---------- Celular ---------- */
 @media (max-width: 860px) {
-  body { grid-template-rows: 48px minmax(0, 1fr); }
-  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 42vh); }
-  .toolbar { flex-direction: row; justify-content: center; padding: 6px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
-  .toolbar .sep { width: 1px; height: 24px; margin: 0 6px; }
-  .panel { border-left: 0; border-top: 1px solid var(--line); padding: 10px 16px; }
+  html, body { overscroll-behavior: none; }
+  body {
+    height: 100vh; height: 100dvh;
+    grid-template-rows: calc(52px + env(safe-area-inset-top)) minmax(0, 1fr);
+    touch-action: manipulation;
+  }
+  .m-only { display: block; }
+  .d-only { display: none !important; }
+  .seg.m-only { display: grid; }
+
+  .topbar { padding: env(safe-area-inset-top) 10px 0; gap: 6px; }
   .brand span { display: none; }
+  .top-actions { gap: 4px; }
   .top-actions .divider { display: none; }
-  .shortcuts { display: none; }
+  .btn { height: 38px; padding: 0 14px; font-size: 14px; }
+  .icon-btn { width: 40px; height: 40px; }
+  .icon-btn svg { width: 21px; height: 21px; }
+  #btnOpen { width: 40px; padding: 0; display: grid; place-items: center; background: transparent; border-color: transparent; }
+  #btnOpen span { display: none; }
+  #btnOpen .m-icon { display: block; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* palco em cima, painel deslizante, abas embaixo */
+  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto; }
+  .toolbar { display: none; }
+  .stage { grid-row: 1; }
+
+  .panel {
+    grid-row: 2; position: relative; max-height: min(42dvh, 400px); padding: 0 16px 12px; gap: 0;
+    border-left: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 24px rgba(0,0,0,.35); overscroll-behavior: contain;
+  }
+  .panel.collapsed { display: none; }
+  .panel[data-tab="effect"] .card[data-tab="mask"],
+  .panel[data-tab="mask"] .card[data-tab="effect"] { display: none; }
+  .panel .card { background: transparent; border: 0; border-radius: 0; padding: 4px 0 12px; }
+  .panel .card + .card { border-top: 1px solid var(--line); padding-top: 14px; }
+  .shortcuts { display: none !important; }
+
+  .sheet-handle {
+    position: sticky; top: 0; z-index: 2; width: calc(100% + 32px); margin: 0 -16px; height: 22px; border: 0; padding: 0;
+    background: var(--panel); display: grid; place-items: center; cursor: pointer;
+  }
+  .sheet-handle span { width: 40px; height: 4px; border-radius: 4px; background: #4a4a4a; }
+
+  .mtabs {
+    grid-row: 3; display: grid; grid-template-columns: 1fr 1fr; background: var(--panel); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .mtabs button {
+    height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    background: none; border: 0; color: var(--muted); font-size: 11.5px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .mtabs button svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .mtabs button.active { color: var(--accent); }
+
+  /* controles do tamanho de um dedo (16px evita o zoom automático do iOS ao focar campos) */
+  .card h2 { font-size: 12px; }
+  .hint { font-size: 13px; }
+  .controls { gap: 10px; }
+  .ctl-head { margin-bottom: 0; font-size: 14px; }
+  .ctl-num input { width: 66px; height: 32px; font-size: 16px; }
+  .effect-select, .field select, .ctl select { height: 42px; font-size: 16px; }
+  input[type=range] { height: 34px; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; }
+  input[type=range]::-webkit-slider-thumb { width: 24px; height: 24px; margin-top: -10px; }
+  input[type=range]::-moz-range-thumb { width: 24px; height: 24px; }
+  .btn.small { height: 40px; padding: 0 18px; font-size: 14px; flex: 1; }
+  .switch { font-size: 13px; }
+  .switch span { width: 36px; height: 21px; }
+  .switch span::after { width: 17px; height: 17px; }
+  .switch input:checked + span::after { transform: translateX(15px); }
+  .group summary { min-height: 40px; font-size: 14px; }
+
+  .stage { -webkit-touch-callout: none; }
+  .zoombar { left: 8px; bottom: 8px; }
+  .zoombar button { height: 34px; min-width: 34px; font-size: 13px; }
+  #zoomIn, #zoomOut { display: none; }
+  .badge { top: 10px; }
+  .dz-inner { padding: 28px 20px; }
+  .dz-inner .btn { height: 46px; padding: 0 28px; font-size: 16px; }
+
+  /* exportação como painel inferior */
+  .dialog {
+    width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 16px 16px 0 0; border-width: 1px 0 0;
+    padding: 20px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+  .dialog-actions .btn { height: 46px; flex: 1; }
+  .dialog-actions.stacked .btn { flex: none; }
 }
-@media (max-width: 420px) {
-  #zoomFit { display: none; }
+@media (max-width: 380px) {
+  #zoom100 { display: none; }
 }

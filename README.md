@@ -29,6 +29,17 @@ A máscara define a **área marcada**, onde o efeito não aparece.
 
 **Antes / Depois** fica na barra de zoom, ao lado do 1:1 (ou segure `\`).
 
+## Celular
+
+Em telas de até 860 px o editor muda para um layout próprio:
+
+- A foto ocupa a tela; embaixo ficam as abas **Efeito** e **Máscara**, que abrem um painel deslizante (tocar na aba ativa recolhe o painel).
+- A ferramenta acompanha a aba: em **Efeito**, arrastar com um dedo move o ponto de origem; em **Máscara**, um dedo pinta com o pincel escolhido (**+ Marcar** / **− Desmarcar**).
+- Dois dedos fazem zoom e movem a foto (o traço ou o movimento iniciado pelo primeiro dedo é desfeito).
+- Ao mudar tamanho ou dureza, uma prévia vermelha do pincel aparece no centro da foto.
+- Exportar oferece **Salvar na galeria / Compartilhar** (menu de compartilhamento do sistema) ou baixar o arquivo.
+- Em aparelhos de toque a máscara e a prévia usam resolução menor, e a exportação usa buffers de 8 bits para economizar memória.
+
 ## Exportação
 
 JPEG, PNG ou WebP na resolução original da foto.
