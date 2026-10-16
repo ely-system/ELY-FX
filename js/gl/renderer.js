@@ -19,6 +19,7 @@ uniform vec2 uImg;         // tamanho da imagem em px
 uniform bool uFlipY;       // true quando o alvo é a tela (origem embaixo)
 uniform int uStrokeMode;   // 0 nenhum, 1 marcar área, 2 desmarcar área
 uniform float uMaskOpacity; // opacidade geral da máscara
+uniform float uFxOpacity;   // opacidade geral do efeito
 uniform bool uShowOriginal;
 uniform bool uShowMask;
 uniform vec3 uBg;
@@ -38,7 +39,7 @@ void main() {
   if (uStrokeMode == 1) m = m + (1.0 - m) * s;
   else if (uStrokeMode == 2) m = m * (1.0 - s);
 
-  float amount = 1.0 - m * uMaskOpacity;
+  float amount = (1.0 - m * uMaskOpacity) * uFxOpacity;
   vec3 col = uShowOriginal ? orig : mix(orig, fx, amount);
   if (uShowMask) col = mix(col, vec3(1.0, 0.12, 0.18), m * 0.55);
   col += (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
@@ -158,7 +159,7 @@ export class Renderer {
   }
 
   /** Desenha a composição na tela. */
-  drawScreen({ view, dpr, mask, stroke, maskOpacity, showOriginal, showMask }) {
+  drawScreen({ view, dpr, mask, stroke, maskOpacity, fxOpacity, showOriginal, showMask }) {
     const gl = this.gl;
     const cw = gl.drawingBufferWidth, ch = gl.drawingBufferHeight;
     if (!this.src || !this.fxTex) {
@@ -188,6 +189,7 @@ export class Renderer {
       uFlipY: true,
       uStrokeMode: stroke ? stroke.mode : 0,
       uMaskOpacity: maskOpacity,
+      uFxOpacity: fxOpacity,
       uShowOriginal: !!showOriginal,
       uShowMask: !!showMask,
       uBg: this.bg,
@@ -195,7 +197,7 @@ export class Renderer {
   }
 
   /** Renderiza em resolução total e devolve ImageData. */
-  exportImage(effect, params, mask, maskOpacity, { lowMemory = false } = {}) {
+  exportImage(effect, params, mask, { maskOpacity = 1, fxOpacity = 1, lowMemory = false } = {}) {
     const gl = this.gl;
     const { w, h } = this.src;
     const temps = [];
@@ -214,7 +216,7 @@ export class Renderer {
       this.pass(this.composite, out, {
         uOrig: this.src.tex, uFx: fxTex, uMask: mask.tex, uStroke: this.emptyTex,
         uCanvas: [w, h], uOffset: [0, 0], uScale: 1, uImg: [w, h], uFlipY: false,
-        uStrokeMode: 0, uMaskOpacity: maskOpacity, uShowOriginal: false, uShowMask: false, uBg: this.bg,
+        uStrokeMode: 0, uMaskOpacity: maskOpacity, uFxOpacity: fxOpacity, uShowOriginal: false, uShowMask: false, uBg: this.bg,
       });
       const data = new Uint8ClampedArray(w * h * 4);
       gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo);

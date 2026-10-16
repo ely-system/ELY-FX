@@ -39,6 +39,7 @@ const state = {
   tool: 'center',
   brush: { size: 250, hardness: 30, flow: 100 },
   maskOpacity: 100, // opacidade geral da máscara (%)
+  fxOpacity: 100,   // opacidade geral do efeito (%)
   showMask: false,
   compare: false,      // modo antes/depois ligado pelo botão
   compareHold: false,  // tecla \ segurada
@@ -52,6 +53,7 @@ let raf = 0;
 let lastPointer = null;      // posição do ponteiro sobre o palco (null = fora)
 let brushPreview = false;    // prévia vermelha do pincel visível por um instante
 let brushPreviewTimer = 0;
+let muiReady = false;         // interface do celular montada (evita uso antes da inicialização)
 
 function requestRender(fx = false) {
   if (fx) fxDirty = true;
@@ -70,6 +72,7 @@ function frame() {
     view, dpr, mask: state.loaded ? mask : null,
     stroke: mask.stroking ? { mode: mask.mode } : null,
     maskOpacity: state.maskOpacity / 100,
+    fxOpacity: state.fxOpacity / 100,
     showOriginal: state.compare || state.compareHold,
     showMask: state.showMask,
   });
@@ -98,15 +101,35 @@ new ResizeObserver(() => {
 
 const effectSelect = $('#effectSelect');
 for (const fx of effects) effectSelect.append(new Option(fx.name, fx.id));
-effectSelect.addEventListener('change', () => {
-  state.effect = effects.find((f) => f.id === effectSelect.value);
+effectSelect.addEventListener('change', () => switchEffect(effectSelect.value));
+
+function switchEffect(id) {
+  const fx = effects.find((f) => f.id === id);
+  if (!fx || fx === state.effect) return;
+  state.effect = fx;
+  effectSelect.value = id;
   // Mantém o ponto de origem ao trocar entre efeitos que o usam.
   const keep = { ox: state.params.ox, oy: state.params.oy };
   state.params = defaultParams(state.effect);
   for (const k in keep) if (k in state.params && keep[k] != null) state.params[k] = keep[k];
   buildEffectControls();
+  muiBuild();
   requestRender(true);
+}
+
+const fxOpacityControl = slider({
+  label: 'Opacidade do efeito', min: 0, max: 100, value: state.fxOpacity, default: 100, unit: '%',
+  tip: 'Intensidade geral do efeito sobre a foto original, como a opacidade de uma camada.',
+  onInput: (v) => setFxOpacity(v),
 });
+$('#fxOpacity').append(fxOpacityControl.el);
+
+function setFxOpacity(v) {
+  fxOpacityControl.set(v);
+  state.fxOpacity = fxOpacityControl.get();
+  muiRefresh();
+  requestRender();
+}
 
 let paramControls = {};
 const openGroups = new Set();
@@ -153,14 +176,19 @@ function setParam(id, v, live = false, syncUI = false) {
   state.params[id] = v;
   state.live = live;
   if (syncUI) paramControls[id]?.set(v);
+  muiRefresh();
   requestRender(true);
 }
 
-$('#btnResetParams').addEventListener('click', () => {
+$('#btnResetParams').addEventListener('click', resetEffect);
+
+function resetEffect() {
   state.params = defaultParams(state.effect);
+  setFxOpacity(100);
   buildEffectControls();
+  muiBuild();
   requestRender(true);
-});
+}
 
 buildEffectControls();
 
@@ -171,20 +199,20 @@ buildEffectControls();
 const brushControls = {
   size: slider({ label: 'Tamanho', min: 1, max: 3000, step: 1, value: state.brush.size, default: 250, unit: 'px',
     tip: 'Diâmetro do pincel em pixels da foto. Atalhos: Alt + roda do mouse, ou [ e ]',
-    onInput: (v) => { state.brush.size = v; flashBrushPreview(); } }),
+    onInput: (v) => setBrush('size', v) }),
   hardness: slider({ label: 'Dureza', min: 0, max: 100, value: state.brush.hardness, default: 30, unit: '%',
     tip: 'Borda do pincel: 0% bem suave, 100% borda definida. Atalhos: Alt + botão direito + arrastar, ou Shift + [ e ]',
-    onInput: (v) => { state.brush.hardness = v; flashBrushPreview(); } }),
+    onInput: (v) => setBrush('hardness', v) }),
   flow: slider({ label: 'Fluxo', min: 1, max: 100, value: state.brush.flow, default: 100, unit: '%',
     tip: 'Quanto cada passada deposita. Fluxo baixo marca aos poucos, acumulando enquanto você pinta. Atalho: teclas 1…0',
-    onInput: (v) => { state.brush.flow = v; } }),
+    onInput: (v) => setBrush('flow', v) }),
 };
 $('#brushParams').append(...Object.values(brushControls).map((c) => c.el));
 
 const maskOpacityControl = slider({
   label: 'Opacidade da máscara', min: 0, max: 100, value: state.maskOpacity, default: 100, unit: '%',
   tip: 'Quanto a área marcada protege a foto do efeito. 100% = nenhum efeito na área marcada. Atalho: Shift + 1…0',
-  onInput: (v) => { state.maskOpacity = v; requestRender(); },
+  onInput: (v) => setMaskOpacity(v),
 });
 $('#maskParams').append(maskOpacityControl.el);
 
@@ -194,12 +222,14 @@ function setBrush(key, v) {
   state.brush[key] = c.get();
   if (key === 'size' || key === 'hardness') flashBrushPreview();
   else updateCursor();
+  muiRefresh();
   requestRender();
 }
 
 function setMaskOpacity(v) {
   maskOpacityControl.set(v);
   state.maskOpacity = maskOpacityControl.get();
+  muiRefresh();
   requestRender();
 }
 
@@ -219,6 +249,7 @@ showMaskInput.addEventListener('change', () => setShowMask(showMaskInput.checked
 function setShowMask(on) {
   state.showMask = on;
   showMaskInput.checked = on;
+  muiRefresh();
   requestRender();
 }
 
@@ -226,18 +257,27 @@ function setShowMask(on) {
 // Painel: prévia
 // ---------------------------------------------------------------------------
 
-$('#previewParams').append(select({
+const PREVIEW_OPTIONS = [
+  { value: '1280', label: 'Rápida (1280 px)', short: 'Rápida' },
+  { value: '2048', label: 'Equilibrada (2048 px)', short: 'Normal' },
+  { value: '3072', label: 'Alta (3072 px)', short: 'Alta' },
+  { value: '100000', label: 'Total (mais lenta)', short: 'Total' },
+];
+const previewControl = select({
   label: 'Resolução da prévia',
   tip: 'Resolução usada para calcular o efeito na tela. A exportação sempre usa a resolução total.',
-  options: [
-    { value: '1280', label: 'Rápida (1280 px)' },
-    { value: '2048', label: 'Equilibrada (2048 px)' },
-    { value: '3072', label: 'Alta (3072 px)' },
-    { value: '100000', label: 'Total (mais lenta)' },
-  ],
+  options: PREVIEW_OPTIONS,
   value: String(state.previewLong),
-  onInput: (v) => { state.previewLong = Number(v); requestRender(true); },
-}).el);
+  onInput: (v) => setPreviewLong(v),
+});
+$('#previewParams').append(previewControl.el);
+
+function setPreviewLong(v) {
+  previewControl.set(String(v));
+  state.previewLong = Number(v);
+  muiRefresh();
+  requestRender(true);
+}
 
 // ---------------------------------------------------------------------------
 // Ferramentas
@@ -253,6 +293,7 @@ function setTool(tool) {
   stage.classList.add('tool-' + tool);
   overlay.classList.toggle('dim', tool === 'add' || tool === 'sub');
   updateCursor();
+  muiRefresh();
 }
 for (const b of document.querySelectorAll('[data-tool]')) b.addEventListener('click', () => setTool(b.dataset.tool));
 setTool('center');
@@ -350,6 +391,8 @@ stage.addEventListener('pointerdown', (e) => {
   e.preventDefault();
 
   if (pointers.size === 2) {
+    if (drag?.type === 'pending') clearTimeout(drag.timer);
+    if (drag?.type === 'peek') setCompareHold(false);
     if (drag?.type === 'paint') mask.cancelStroke();
     if (drag?.type === 'center' && drag.before) {
       for (const k in drag.before) setParam(k, drag.before[k], false, true);
@@ -359,6 +402,12 @@ stage.addEventListener('pointerdown', (e) => {
     return;
   }
   if (pointers.size > 2) return;
+
+  // Toque/caneta: espera o dedo se mover para decidir. Parado por um instante = mostrar o original.
+  if (e.pointerType !== 'mouse' && e.button === 0 && !state.space && state.tool !== 'pan') {
+    drag = { type: 'pending', start: p, timer: setTimeout(startPeek, 380) };
+    return;
+  }
 
   if (isBrush() && e.altKey && e.button === 2) {
     // Alt + botão direito + arrastar: ajusta a dureza (direita/cima = mais dura).
@@ -370,14 +419,38 @@ stage.addEventListener('pointerdown', (e) => {
     setPanning(true);
   } else if (e.button !== 0) {
     drag = null;
-  } else if (state.tool === 'center') {
+  } else {
+    startAction(p);
+  }
+});
+
+/** Começa a ação da ferramenta atual no ponto p (mover origem, pintar ou, fora da foto, mover a vista). */
+function startAction(p) {
+  if (state.tool === 'center') {
+    if (!insideImage(p)) {
+      drag = { type: 'pan', last: p };
+      setPanning(true);
+      return;
+    }
     const before = state.effect.originParams ? { ox: state.params.ox, oy: state.params.oy } : null;
     drag = { type: 'center', before };
     moveCenter(p, true);
   } else {
     beginPaint(p);
   }
-});
+}
+
+function insideImage(p) {
+  const [ix, iy] = view.toImage(p[0], p[1]);
+  return ix >= 0 && iy >= 0 && ix <= renderer.src.w && iy <= renderer.src.h;
+}
+
+function startPeek() {
+  if (drag?.type !== 'pending') return;
+  drag = { type: 'peek' };
+  setCompareHold(true);
+  navigator.vibrate?.(10);
+}
 
 stage.addEventListener('pointermove', (e) => {
   const p = local(e);
@@ -388,8 +461,17 @@ stage.addEventListener('pointermove', (e) => {
     toast('Dureza ' + state.brush.hardness + '%', 900);
     return;
   }
-  lastPointer = p;
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, p);
+  if (drag?.type === 'peek') return;
+  if (drag?.type === 'pending') {
+    if (Math.hypot(p[0] - drag.start[0], p[1] - drag.start[1]) < 8) return;
+    clearTimeout(drag.timer);
+    const start = drag.start;
+    drag = null;
+    lastPointer = start;
+    startAction(start);
+  }
+  lastPointer = p;
   updateCursor();
   if (!drag) return;
 
@@ -416,6 +498,19 @@ function endPointer(e) {
     return;
   }
   if (!drag) return;
+  if (drag.type === 'pending') {
+    // Toque rápido sem arrastar: carimba o pincel ou posiciona o ponto de origem.
+    clearTimeout(drag.timer);
+    const start = drag.start;
+    drag = null;
+    startAction(start);
+    if (!drag) return;
+  }
+  if (drag.type === 'peek') {
+    setCompareHold(false);
+    drag = null;
+    return;
+  }
   if (drag.type === 'paint') {
     history.push(mask.endStroke());
     updateHistoryButtons();
@@ -431,6 +526,8 @@ function endPointer(e) {
 }
 stage.addEventListener('pointerup', endPointer);
 stage.addEventListener('pointercancel', (e) => {
+  if (drag?.type === 'pending') { clearTimeout(drag.timer); drag = null; }
+  if (drag?.type === 'peek') { setCompareHold(false); drag = null; }
   if (drag?.type === 'paint') { mask.cancelStroke(); drag = null; requestRender(); }
   endPointer(e);
 });
@@ -617,7 +714,8 @@ async function openFile(file) {
     $('#zoombar').hidden = false;
     stage.classList.remove('empty');
     $('#btnExport').disabled = false;
-    if (mobileLayout.matches) setTab('effect', true);
+    muiBuild();
+    if (mobileLayout.matches) muiSetTab('effect', true);
     $('#imgInfo').textContent = `${state.fileName} — ${w} × ${h} px` + (mask.scale < 1 ? ` · máscara ${mask.w} × ${mask.h} px` : '');
     updateZoomLabel();
     requestRender(true);
@@ -793,7 +891,9 @@ $('#expGo').addEventListener('click', async (e) => {
   await new Promise((r) => setTimeout(r, 30));
   try {
     const type = expFormat.value;
-    const img = renderer.exportImage(state.effect, state.params, mask, state.maskOpacity / 100, { lowMemory: coarse });
+    const img = renderer.exportImage(state.effect, state.params, mask, {
+      maskOpacity: state.maskOpacity / 100, fxOpacity: state.fxOpacity / 100, lowMemory: coarse,
+    });
     requestRender(true); // os buffers da prévia continuam válidos, mas o estado do GL mudou
     const c = document.createElement('canvas');
     c.width = img.width;
@@ -825,38 +925,263 @@ $('#expGo').addEventListener('click', async (e) => {
 });
 
 // ---------------------------------------------------------------------------
-// Celular: abas Efeito / Máscara e painel deslizante
+// Celular: interface no estilo Lightroom/PS mobile
+//   abas embaixo → fileira de "chips" com os ajustes → um único controle por vez,
+//   tudo sobre a foto com fundo translúcido. Arrastar o painel para baixo o recolhe.
 // ---------------------------------------------------------------------------
 
-const panel = $('#panel');
-let mTab = 'effect';
-let sheetOpen = true;
+const mui = $('#mui');
+const muiSheet = $('#muiSheet');
+const muiChips = $('#muiChips');
+const muiEditor = $('#muiEditor');
+let muiTab = 'effect';
+let muiOpen = false;
+const muiSelected = { effect: 'amount', mask: 'mode' };
+let muiItems = [];
+let muiEditorState = null; // { item, ctl } do controle aberto
 
-/** Tocar na aba ativa recolhe o painel para mostrar a foto inteira. */
-function setTab(tab, forceOpen = false) {
-  if (tab === mTab && sheetOpen && !forceOpen) sheetOpen = false;
-  else { mTab = tab; sheetOpen = true; }
-  applyTab();
+function muiEffectItems() {
+  const items = [
+    { key: 'effect', label: 'Efeito', type: 'select', get: () => state.effect.id, set: (v) => switchEffect(v),
+      options: effects.map((f) => ({ value: f.id, label: f.name, short: f.name.replace('Desfoque ', '').replace(/^./, (c) => c.toUpperCase()) })) },
+    { key: 'fxOpacity', label: 'Opacidade', title: 'Opacidade do efeito', type: 'range', min: 0, max: 100, step: 1, unit: '%', default: 100,
+      get: () => state.fxOpacity, set: (v) => setFxOpacity(v) },
+  ];
+  for (const def of state.effect.params) {
+    const [min, max] = def.range && state.loaded ? def.range(renderer.src.w, renderer.src.h) : [def.min, def.max];
+    items.push({
+      key: def.id, label: def.chip || def.label, title: def.group ? `${def.group}: ${def.label}` : def.label,
+      type: def.type, options: def.options, min, max, step: def.step, unit: def.unit, default: def.default,
+      get: () => state.params[def.id], set: (v, live) => setParam(def.id, v, live, true),
+    });
+  }
+  items.push({ key: 'preview', label: 'Prévia', title: 'Resolução da prévia', type: 'select', options: PREVIEW_OPTIONS,
+    get: () => String(state.previewLong), set: (v) => setPreviewLong(v) });
+  return items;
 }
 
-function applyTab() {
-  panel.dataset.tab = mTab;
-  panel.classList.toggle('collapsed', !sheetOpen);
-  for (const b of document.querySelectorAll('.mtabs [data-tab]')) b.classList.toggle('active', b.dataset.tab === mTab);
+function muiMaskItems() {
+  return [
+    { key: 'mode', label: 'Pincel', type: 'select', get: () => lastBrushTool, set: (v) => setTool(v),
+      options: [{ value: 'add', label: '+ Marcar' }, { value: 'sub', label: '− Desmarcar' }] },
+    { key: 'size', label: 'Tamanho', type: 'range', min: 1, max: 3000, step: 1, unit: 'px', default: 250,
+      get: () => state.brush.size, set: (v) => setBrush('size', v) },
+    { key: 'hardness', label: 'Dureza', type: 'range', min: 0, max: 100, step: 1, unit: '%', default: 30,
+      get: () => state.brush.hardness, set: (v) => setBrush('hardness', v) },
+    { key: 'flow', label: 'Fluxo', type: 'range', min: 1, max: 100, step: 1, unit: '%', default: 100,
+      get: () => state.brush.flow, set: (v) => setBrush('flow', v) },
+    { key: 'maskOpacity', label: 'Opacidade', title: 'Opacidade da máscara', type: 'range', min: 0, max: 100, step: 1, unit: '%', default: 100,
+      get: () => state.maskOpacity, set: (v) => setMaskOpacity(v) },
+    { key: 'show', label: 'Ver área', type: 'toggle', get: () => state.showMask, set: (v) => setShowMask(v) },
+    { key: 'invert', label: 'Inverter', type: 'action', run: () => { maskOp(() => mask.invert()); toast('Máscara invertida', 1200); } },
+    { key: 'clear', label: 'Limpar', type: 'action', run: () => { maskOp(() => mask.fill(0)); toast('Máscara limpa', 1200); } },
+  ];
+}
+
+function chipValue(it) {
+  const v = it.get?.();
+  if (it.type === 'range') return Math.round(v * 10) / 10 + (it.unit === '%' ? '%' : '');
+  if (it.type === 'select') {
+    const o = it.options.find((o) => o.value === v);
+    return o ? (o.short || o.label) : '';
+  }
+  if (it.type === 'toggle') return v ? 'Ligado' : 'Desligado';
+  return '';
+}
+
+/** Remonta chips e editor (troca de aba, de efeito ou nova foto). */
+function muiBuild() {
+  muiReady = true;
+  muiItems = muiTab === 'effect' ? muiEffectItems() : muiMaskItems();
+  const selectable = (it) => it.type === 'range' || it.type === 'select';
+  if (!muiItems.some((it) => it.key === muiSelected[muiTab] && selectable(it))) {
+    muiSelected[muiTab] = muiItems.find(selectable).key;
+  }
+  muiChips.replaceChildren(...muiItems.map((it) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip chip-' + it.type;
+    b.dataset.key = it.key;
+    b.innerHTML = '<span class="chip-label"></span><span class="chip-value"></span>';
+    b.querySelector('.chip-label').textContent = it.label;
+    b.addEventListener('click', () => {
+      if (it.type === 'action') return it.run();
+      if (it.type === 'toggle') return it.set(!it.get());
+      muiSelected[muiTab] = it.key;
+      muiBuildEditor();
+      muiRefresh();
+      b.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+    });
+    return b;
+  }));
+  muiBuildEditor();
+  muiRefresh();
+}
+
+function muiBuildEditor() {
+  const it = muiItems.find((i) => i.key === muiSelected[muiTab]);
+  muiEditor.replaceChildren();
+  muiEditorState = null;
+  if (!it) return;
+  if (it.type === 'range') {
+    const ctl = slider({
+      label: it.title || it.label, min: it.min, max: it.max, step: it.step, unit: it.unit === '%' ? '%' : it.unit,
+      value: it.get(), default: it.default, onInput: (v, live) => it.set(v, live),
+    });
+    muiEditor.append(ctl.el);
+    muiEditorState = { it, ctl };
+  } else {
+    const seg = document.createElement('div');
+    seg.className = 'mui-seg';
+    seg.setAttribute('role', 'group');
+    seg.setAttribute('aria-label', it.title || it.label);
+    for (const o of it.options) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.value = o.value;
+      b.textContent = o.short || o.label;
+      b.addEventListener('click', () => it.set(o.value));
+      seg.append(b);
+    }
+    const title = document.createElement('div');
+    title.className = 'mui-title';
+    title.textContent = it.title || it.label;
+    muiEditor.append(title, seg);
+    muiEditorState = { it, seg };
+  }
+}
+
+/** Atualiza valores mostrados (chamada sempre que algo muda, por qualquer caminho). */
+function muiRefresh() {
+  if (!muiReady) return;
+  for (const b of muiChips.children) {
+    const it = muiItems.find((i) => i.key === b.dataset.key);
+    if (!it) continue;
+    b.querySelector('.chip-value').textContent = chipValue(it);
+    b.classList.toggle('selected', it.key === muiSelected[muiTab]);
+    b.classList.toggle('on', it.type === 'toggle' && !!it.get());
+  }
+  const ed = muiEditorState;
+  if (ed?.ctl) ed.ctl.set(ed.it.get());
+  if (ed?.seg) for (const b of ed.seg.children) b.classList.toggle('active', b.dataset.value === String(ed.it.get()));
+}
+
+/** Tocar na aba ativa recolhe/abre o painel. */
+function muiSetTab(tab, forceOpen = false) {
+  if (tab === muiTab && muiOpen && !forceOpen) muiOpen = false;
+  else {
+    const changed = tab !== muiTab;
+    muiTab = tab;
+    muiOpen = true;
+    if (changed || !muiItems.length) muiBuild();
+  }
+  muiApply();
+}
+
+function muiApply() {
+  mui.classList.toggle('collapsed', !muiOpen);
+  for (const b of mui.querySelectorAll('.mtabs [data-tab]')) b.classList.toggle('active', b.dataset.tab === muiTab);
   // No celular a ferramenta segue a aba: Efeito = mover origem, Máscara = pincel.
-  if (mobileLayout.matches) setTool(mTab === 'mask' ? lastBrushTool : 'center');
+  if (mobileLayout.matches) setTool(muiTab === 'mask' ? lastBrushTool : 'center');
 }
 
-for (const b of document.querySelectorAll('.mtabs [data-tab]')) b.addEventListener('click', () => setTab(b.dataset.tab));
-$('#sheetHandle').addEventListener('click', () => { sheetOpen = false; applyTab(); });
+for (const b of mui.querySelectorAll('.mtabs [data-tab]')) b.addEventListener('click', () => muiSetTab(b.dataset.tab));
+$('#muiHandle').addEventListener('click', () => { muiOpen = !muiOpen; muiApply(); });
+
+// Arrastar o painel para baixo recolhe; para cima abre (fora de sliders e da fileira de chips rolando).
+{
+  let sw = null;
+  mui.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('input, select')) return;
+    sw = { x: e.clientX, y: e.clientY, id: e.pointerId, done: false };
+  });
+  mui.addEventListener('pointermove', (e) => {
+    if (!sw || sw.id !== e.pointerId || sw.done) return;
+    const dx = e.clientX - sw.x, dy = e.clientY - sw.y;
+    if (Math.abs(dy) < 28 || Math.abs(dy) < Math.abs(dx) * 1.4) return;
+    sw.done = true;
+    const open = dy < 0;
+    if (open !== muiOpen) { muiOpen = open; muiApply(); }
+    // O toque que terminou o arraste não deve virar "clique" numa aba ou chip.
+    const block = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+    mui.addEventListener('click', block, { capture: true, once: true });
+    setTimeout(() => mui.removeEventListener('click', block, { capture: true }), 400);
+  });
+  const end = () => { sw = null; };
+  mui.addEventListener('pointerup', end);
+  mui.addEventListener('pointercancel', end);
+}
+
+// As barras ficam sobre a foto. O enquadramento desconta a barra de cima e as abas;
+// o painel de ajustes é translúcido e deixa a foto aparecer por trás enquanto se ajusta.
+function updateInsets() {
+  if (!mobileLayout.matches) {
+    view.setInsets(0, 0);
+    for (const k of ['--inset-top', '--inset-bottom', '--ui-bottom']) stage.style.removeProperty(k);
+    return;
+  }
+  const top = $('.topbar').getBoundingClientRect().height;
+  const tabsTop = mui.querySelector('.mtabs').getBoundingClientRect().top;
+  const bottom = Math.max(0, window.innerHeight - tabsTop);
+  stage.style.setProperty('--inset-top', top + 'px');
+  stage.style.setProperty('--inset-bottom', bottom + 'px');
+  const panel = mui.getBoundingClientRect().height;
+  stage.style.setProperty('--ui-bottom', panel + 'px');
+  view.setInsets(top, bottom, panel);
+  updateZoomLabel();
+  requestRender();
+}
+new ResizeObserver(updateInsets).observe(mui);
+new ResizeObserver(updateInsets).observe($('.topbar'));
 mobileLayout.addEventListener('change', () => {
-  if (mobileLayout.matches) applyTab();
-  else panel.classList.remove('collapsed');
+  if (mobileLayout.matches) muiApply();
+  updateInsets();
 });
-if (mobileLayout.matches) { sheetOpen = false; applyTab(); }
+muiBuild();
+muiApply();
 
 // Safari (iOS) aplica zoom de página com gestos mesmo com touch-action; bloqueia fora dos controles.
 document.addEventListener('gesturestart', (e) => e.preventDefault());
+
+// ---------------------------------------------------------------------------
+// App instalável (PWA) e tela cheia
+// ---------------------------------------------------------------------------
+
+const standalone = matchMedia('(display-mode: standalone)').matches
+  || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const btnInstall = $('#btnInstall');
+const btnFullscreen = $('#btnFullscreen');
+let installEvent = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installEvent = e;
+  btnInstall.hidden = false;
+});
+window.addEventListener('appinstalled', () => { btnInstall.hidden = true; installEvent = null; });
+if (isIOS && !standalone) btnInstall.hidden = false; // Safari não tem prompt: mostra instruções
+
+btnInstall.addEventListener('click', async () => {
+  if (installEvent) {
+    installEvent.prompt();
+    await installEvent.userChoice.catch(() => {});
+    installEvent = null;
+    btnInstall.hidden = true;
+  } else {
+    $('#installDialog').showModal();
+  }
+});
+
+if (!standalone && document.fullscreenEnabled && coarse) btnFullscreen.hidden = false;
+btnFullscreen.addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+});
+
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
 
 // ---------------------------------------------------------------------------
 // Utilidades

@@ -11,6 +11,16 @@ export class Viewport {
     this.fitted = true;
     this.minScale = 0.01;
     this.maxScale = 32;
+    // Áreas cobertas por barras translúcidas (celular): a foto é enquadrada entre elas.
+    // `bottom` é sempre coberto (abas); `panel` é o painel translúcido, que a foto pode ultrapassar.
+    this.inset = { top: 0, bottom: 0, panel: 0 };
+  }
+
+  setInsets(top, bottom, panel = bottom) {
+    const i = this.inset;
+    if (top === i.top && bottom === i.bottom && panel === i.panel) return;
+    this.inset = { top, bottom, panel };
+    if (this.imgW && this.fitted) this.fit();
   }
 
   setSize(w, h) {
@@ -30,11 +40,16 @@ export class Viewport {
   }
 
   fit() {
-    const pad = this.w < 600 ? 12 : 32;
-    const s = Math.min((this.w - pad * 2) / this.imgW, (this.h - pad * 2) / this.imgH);
+    const pad = this.w < 600 ? 8 : 32;
+    const availH = Math.max(1, this.h - this.inset.top - this.inset.bottom);
+    const s = Math.min((this.w - pad * 2) / this.imgW, (availH - pad * 2) / this.imgH);
     this.scale = Math.max(this.minScale, Math.min(s, this.maxScale));
     this.x = (this.w - this.imgW * this.scale) / 2;
-    this.y = (this.h - this.imgH * this.scale) / 2;
+    // Centraliza acima do painel se couber; senão começa logo abaixo da barra de cima
+    // e o resto fica visível por trás do painel translúcido.
+    const h = this.imgH * this.scale;
+    const above = Math.max(1, this.h - this.inset.top - this.inset.panel);
+    this.y = this.inset.top + (h <= above ? (above - h) / 2 : Math.max(0, Math.min(pad, (availH - h) / 2)));
     this.fitted = true;
   }
 

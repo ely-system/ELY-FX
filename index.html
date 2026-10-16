@@ -8,9 +8,11 @@
   <meta name="theme-color" content="#1c1c1c">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="ELY FX">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -20,6 +22,12 @@
       <span>ELY <b>FX</b></span>
     </div>
     <div class="top-actions">
+      <button id="btnInstall" class="icon-btn" title="Instalar o app" aria-label="Instalar o app" hidden>
+        <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      </button>
+      <button id="btnFullscreen" class="icon-btn" title="Tela cheia" aria-label="Tela cheia" hidden>
+        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      </button>
       <button id="btnOpen" class="btn" title="Abrir foto (Ctrl+O)">
         <svg class="m-icon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5L6 19"/></svg>
         <span>Abrir foto</span>
@@ -95,15 +103,14 @@
     </section>
 
     <aside class="panel" id="panel" data-tab="effect">
-      <button class="sheet-handle m-only" id="sheetHandle" aria-label="Recolher painel"><span></span></button>
-
       <section class="card" data-tab="effect">
         <div class="card-head">
           <h2>Efeito</h2>
           <button id="btnResetParams" class="link-btn" title="Restaurar valores padrão">Redefinir</button>
         </div>
         <select id="effectSelect" class="effect-select" aria-label="Efeito"></select>
-        <p class="hint m-only">Toque e arraste na foto para mover o ponto de origem. Dois dedos: zoom e mover.</p>
+        <div id="fxOpacity" class="controls"></div>
+        <div class="card-sub"></div>
         <div id="effectParams" class="controls"></div>
       </section>
 
@@ -114,15 +121,10 @@
             <input type="checkbox" id="showMask"><span></span> Ver área marcada
           </label>
         </div>
-        <div class="seg m-only" role="group" aria-label="Pincel">
-          <button data-tool="add"><b>+</b> Marcar</button>
-          <button data-tool="sub"><b>−</b> Desmarcar</button>
-        </div>
         <p class="hint d-only">
           Use o pincel <b class="sign">+</b> da barra de ferramentas para <b>marcar</b> as áreas onde o efeito não deve aparecer,
           e o pincel <b class="sign">−</b> para <b>desmarcar</b>. Atalhos: B e E (X alterna).
         </p>
-        <p class="hint m-only">Pinte com um dedo as áreas onde o efeito <b>não</b> deve aparecer. Dois dedos: zoom e mover.</p>
         <div id="brushParams" class="controls"></div>
         <div class="card-sub"></div>
         <div id="maskParams" class="controls"></div>
@@ -162,16 +164,24 @@
       </details>
     </aside>
 
-    <nav class="mtabs m-only" aria-label="Seções">
-      <button data-tab="effect" class="active">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M12 4a8 8 0 0 1 8 8M12 20a8 8 0 0 1-8-8"/><path d="M12 7.5a4.5 4.5 0 0 1 4.5 4.5M12 16.5A4.5 4.5 0 0 1 7.5 12"/></svg>
-        <span>Efeito</span>
-      </button>
-      <button data-tab="mask">
-        <svg viewBox="0 0 24 24"><path d="M18.4 3.6a2 2 0 0 1 2.8 2.8L12 15.6 8.4 12z"/><path d="M8.4 12C5.5 12 4 14 4 16.5c0 1.6-.8 2.8-2 3.5 4.6.7 9-.6 10-4.4"/></svg>
-        <span>Máscara</span>
-      </button>
-    </nav>
+    <!-- Interface do celular (estilo Lightroom/PS mobile): um controle por vez sobre a foto -->
+    <div class="mui m-only" id="mui">
+      <div class="mui-sheet" id="muiSheet">
+        <div class="mui-handle" id="muiHandle" aria-hidden="true"><span></span></div>
+        <div class="mui-editor" id="muiEditor"></div>
+        <div class="mui-chips" id="muiChips" role="tablist"></div>
+      </div>
+      <nav class="mtabs" aria-label="Seções">
+        <button data-tab="effect" class="active">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M12 4a8 8 0 0 1 8 8M12 20a8 8 0 0 1-8-8"/><path d="M12 7.5a4.5 4.5 0 0 1 4.5 4.5M12 16.5A4.5 4.5 0 0 1 7.5 12"/></svg>
+          <span>Efeito</span>
+        </button>
+        <button data-tab="mask">
+          <svg viewBox="0 0 24 24"><path d="M18.4 3.6a2 2 0 0 1 2.8 2.8L12 15.6 8.4 12z"/><path d="M8.4 12C5.5 12 4 14 4 16.5c0 1.6-.8 2.8-2 3.5 4.6.7 9-.6 10-4.4"/></svg>
+          <span>Máscara</span>
+        </button>
+      </nav>
+    </div>
   </main>
 
   <dialog id="exportDialog" class="dialog">
@@ -201,6 +211,15 @@
           <button value="cancel" class="btn ghost">Fechar</button>
         </div>
       </div>
+    </form>
+  </dialog>
+
+  <dialog id="installDialog" class="dialog">
+    <form method="dialog">
+      <h3>Instalar o ELY FX</h3>
+      <p class="hint">No iPhone/iPad, toque em <b>Compartilhar</b> (o quadrado com a seta para cima) na barra do Safari e depois em <b>Adicionar à Tela de Início</b>.</p>
+      <p class="hint">O app abre em tela cheia, sem a barra do navegador, e funciona mesmo sem internet.</p>
+      <div class="dialog-actions"><button class="btn primary" value="ok">Entendi</button></div>
     </form>
   </dialog>
 

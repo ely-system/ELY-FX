@@ -16,6 +16,7 @@ Controles dos dois efeitos:
 - **Intensidade:** 0–100.
 - **Área nítida** e **suavidade da transição:** mantém a região do ponto de origem sem desfoque.
 - **Qualidade:** rascunho, boa ou ótima.
+- **Opacidade do efeito:** intensidade geral do efeito sobre a foto original.
 - **Posição do ponto de origem** (grupo recolhível): em pixels a partir do centro da foto — horizontal positivo = direita, vertical positivo = cima. Também pode ser arrastado sobre a foto (ferramenta V).
 
 ## Máscara
@@ -31,14 +32,22 @@ A máscara define a **área marcada**, onde o efeito não aparece.
 
 ## Celular
 
-Em telas de até 860 px o editor muda para um layout próprio:
+Em telas de até 860 px o editor muda para uma interface no estilo Lightroom / PS mobile:
 
-- A foto ocupa a tela; embaixo ficam as abas **Efeito** e **Máscara**, que abrem um painel deslizante (tocar na aba ativa recolhe o painel).
-- A ferramenta acompanha a aba: em **Efeito**, arrastar com um dedo move o ponto de origem; em **Máscara**, um dedo pinta com o pincel escolhido (**+ Marcar** / **− Desmarcar**).
-- Dois dedos fazem zoom e movem a foto (o traço ou o movimento iniciado pelo primeiro dedo é desfeito).
-- Ao mudar tamanho ou dureza, uma prévia vermelha do pincel aparece no centro da foto.
-- Exportar oferece **Salvar na galeria / Compartilhar** (menu de compartilhamento do sistema) ou baixar o arquivo.
-- Em aparelhos de toque a máscara e a prévia usam resolução menor, e a exportação usa buffers de 8 bits para economizar memória.
+- A foto ocupa a tela inteira; a barra de cima e o painel de ajustes ficam por cima, translúcidos.
+- Abas **Efeito** e **Máscara** embaixo; acima delas, uma fileira de ajustes (chips) e **um controle por vez**.
+- A ferramenta acompanha a aba: em **Efeito**, arrastar move o ponto de origem; em **Máscara**, um dedo pinta (**+ Marcar** / **− Desmarcar**).
+- **Pressionar e segurar** na foto mostra o original; ao soltar volta ao normal.
+- Tocar/arrastar **fora da foto** move a vista (não mexe no ponto de origem).
+- Dois dedos fazem zoom e movem a foto.
+- Arrastar o painel **para baixo** recolhe, **para cima** abre (ou toque na aba ativa).
+- Exportar oferece **Salvar na galeria / Compartilhar** ou baixar o arquivo.
+
+### App instalável (PWA)
+
+O site pode ser instalado como app: no Android aparece o botão de instalar na barra de cima; no iPhone,
+**Compartilhar → Adicionar à Tela de Início**. Instalado, abre em tela cheia (sem a barra do navegador)
+e funciona offline. Arquivos: `manifest.webmanifest`, `sw.js` e `icons/`.
 
 ## Exportação
 
