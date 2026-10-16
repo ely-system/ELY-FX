@@ -245,6 +245,14 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
 .shortcuts dt { color: var(--text); font-family: ui-monospace, Consolas, monospace; font-size: 11px; max-width: 130px; }
 .shortcuts dd { margin: 0; color: var(--muted); }
 
+/* ---------- Aviso de nova versão ---------- */
+.update-bar {
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 56px); transform: translateX(-50%); z-index: 20;
+  display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 12px;
+  background: #2a2416; border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  max-width: calc(100vw - 24px); font-size: 13px;
+}
+
 /* ---------- Dialog ---------- */
 .dialog {
   background: var(--panel-2); color: var(--text); border: 1px solid #3a3a3a; border-radius: 12px;

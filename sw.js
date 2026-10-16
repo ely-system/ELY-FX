@@ -2,7 +2,7 @@
 // Estratégia "rede primeiro": online sempre pega a versão mais nova publicada;
 // offline usa a última cópia guardada.
 
-const CACHE = 'elyfx-v1';
+const CACHE = 'elyfx-v2';
 const SHELL = [
   './',
   './index.html',
@@ -37,7 +37,9 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== location.origin) return;
+  if (url.pathname.endsWith('/version.json')) return; // sempre direto da rede
   // Sempre revalida com o servidor, para nunca misturar arquivos de versões diferentes.
   const fresh = req.mode === 'navigate' ? new Request(req.url, { cache: 'no-cache' }) : new Request(req, { cache: 'no-cache' });
   e.respondWith(

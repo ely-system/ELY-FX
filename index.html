@@ -44,6 +44,11 @@
     </div>
   </header>
 
+  <div class="update-bar" id="updateBar" role="alert" hidden>
+    <span>Nova versão do ELY FX disponível.</span>
+    <button class="btn primary small" id="btnUpdate">Atualizar agora</button>
+  </div>
+
   <main class="workspace">
     <nav class="toolbar" aria-label="Ferramentas">
       <button class="tool active" data-tool="center" title="Mover ponto de origem do efeito (V)" aria-label="Mover ponto de origem">
@@ -138,6 +143,7 @@
         <div class="card-head"><h2>Prévia</h2></div>
         <div id="previewParams" class="controls"></div>
         <p class="hint" id="imgInfo">Nenhuma foto aberta.</p>
+        <p class="hint small" id="appVersion"></p>
       </section>
 
       <details class="card shortcuts">

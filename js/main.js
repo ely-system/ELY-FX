@@ -1179,9 +1179,52 @@ btnFullscreen.addEventListener('click', () => {
   else document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
 });
 
+let swReg = null;
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  navigator.serviceWorker.register('./sw.js').then((r) => { swReg = r; }).catch(() => {});
 }
+
+// ---------------------------------------------------------------------------
+// Versão sempre atualizada
+//   A cada publicação o GitHub gera version.json. O app guarda a versão com que abriu e
+//   confere de novo ao voltar para a tela e a cada poucos minutos. Se mudou:
+//   sem foto aberta → recarrega sozinho; editando → aviso fixo até atualizar.
+// ---------------------------------------------------------------------------
+
+let bootVersion = null;
+
+async function fetchVersion() {
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    return r.ok ? await r.json() : null;
+  } catch {
+    return null; // offline ou rodando localmente
+  }
+}
+
+async function checkForUpdate() {
+  const v = await fetchVersion();
+  if (!v?.version) return;
+  if (!bootVersion) {
+    bootVersion = v.version;
+    const d = v.date ? new Date(v.date).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    $('#appVersion').textContent = `Versão ${v.version}${d ? ' · ' + d : ''}`;
+    return;
+  }
+  if (v.version === bootVersion) return;
+  swReg?.update().catch(() => {});
+  if (!state.loaded) location.reload();
+  else $('#updateBar').hidden = false;
+}
+
+$('#btnUpdate').addEventListener('click', () => {
+  if (history.canUndo && !confirm('Atualizar agora? A edição atual será perdida. Exporte antes se quiser guardá-la.')) return;
+  location.reload();
+});
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
+window.addEventListener('online', checkForUpdate);
+setInterval(checkForUpdate, 5 * 60 * 1000);
+checkForUpdate();
 
 // ---------------------------------------------------------------------------
 // Utilidades
