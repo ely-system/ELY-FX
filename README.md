@@ -65,7 +65,10 @@ Depois abra http://localhost:5173.
 
 ## Publicação
 
-O site é estático e publicado pelo GitHub Pages a partir da branch `main` (pasta raiz).
+O site é estático e publicado pelo GitHub Pages pelo fluxo `.github/workflows/pages.yml` a cada push na `main`.
+O fluxo gera `version.json` com o commit publicado. O app confere esse arquivo ao voltar para a tela,
+ao reconectar e a cada 5 minutos: se houver versão nova, recarrega sozinho quando não há foto aberta
+ou mostra o aviso **Atualizar agora** durante uma edição. A versão em uso aparece no cartão **Prévia**.
 
 ## Estrutura
 
