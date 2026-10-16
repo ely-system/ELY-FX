@@ -299,7 +299,9 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   .topbar {
     position: fixed; top: 0; left: 0; right: 0; z-index: 6; height: auto; min-height: 0;
     padding: env(safe-area-inset-top) 8px 0; padding-bottom: 4px; padding-top: calc(env(safe-area-inset-top) + 4px);
-    background: var(--glass); border-bottom: 0;
+    /* Opaca de propósito: no iPhone (iOS 26, "Liquid Glass") o sistema aplica um desfoque próprio sobre
+       conteúdo translúcido no topo da tela. Com cor sólida (igual à theme-color) não há o que desfocar. */
+    background: var(--stage); border-bottom: 1px solid rgba(255,255,255,.05);
   }
   .brand span { display: none; }
   .top-actions { gap: 2px; }
