@@ -1,12 +1,11 @@
 // Camada de máscara pintada na GPU.
 //
-// Valor 1 = efeito aplicado, 0 = efeito removido (foto original).
+// A máscara guarda a ÁREA MARCADA: 1 = marcada (efeito removido), 0 = não marcada (efeito aplicado).
+// A opacidade da máscara é global e aplicada só na composição final.
 //
-// Modelo de pincel igual ao do Photoshop:
-//  - Fluxo: cada "carimbo" (dab) da pincelada deposita `fluxo` de tinta num buffer de traço,
-//    acumulando onde os carimbos se sobrepõem (passar várias vezes no mesmo traço escurece).
-//  - Opacidade: o traço inteiro é limitado a `opacidade`, por mais que se acumule.
-// Ao soltar o mouse, o traço é aplicado na máscara e um registro de desfazer é criado.
+// Fluxo do pincel (igual ao Photoshop): cada "carimbo" (dab) deposita `fluxo` de tinta num buffer
+// de traço, acumulando onde os carimbos se sobrepõem. Ao soltar o mouse, o traço é aplicado na
+// máscara e um registro de desfazer é criado.
 
 import { createTarget, deleteTarget } from './gl/glutil.js';
 
@@ -41,14 +40,13 @@ const COMMIT_FS = `#version 300 es
 precision highp float;
 uniform sampler2D uMask;
 uniform sampler2D uStroke;
-uniform float uOpacity;
 uniform int uMode;
 out vec4 outColor;
 void main() {
   ivec2 p = ivec2(gl_FragCoord.xy);
   float m = texelFetch(uMask, p, 0).r;
-  float s = clamp(texelFetch(uStroke, p, 0).a, 0.0, 1.0) * uOpacity;
-  float v = uMode == 1 ? m * (1.0 - s) : m + (1.0 - m) * s;
+  float s = clamp(texelFetch(uStroke, p, 0).a, 0.0, 1.0);
+  float v = uMode == 1 ? m + (1.0 - m) * s : m * (1.0 - s);
   outColor = vec4(v, v, v, 1.0);
 }`;
 
@@ -61,8 +59,8 @@ void main() {
   outColor = vec4(v, v, v, 1.0);
 }`;
 
-export const ERASE = 1;
-export const RESTORE = 2;
+export const ADD = 1;      // pincel (+): marca área
+export const SUBTRACT = 2; // pincel (−): desmarca área
 
 export class MaskLayer {
   constructor(renderer, maxSide = 4096) {
@@ -83,7 +81,7 @@ export class MaskLayer {
     this.a = createTarget(gl, this.w, this.h, this.r.fmt8);
     this.b = createTarget(gl, this.w, this.h, this.r.fmt8);
     this.stroke = createTarget(gl, this.w, this.h, this.r.fmtWork);
-    this._clear(this.a, 1);
+    this._clear(this.a, 0);
     this._clear(this.stroke, 0);
   }
 
@@ -154,15 +152,15 @@ export class MaskLayer {
   }
 
   /** Aplica o traço na máscara. Devolve um registro de desfazer (ou null se nada mudou). */
-  endStroke(opacity) {
+  endStroke() {
     if (!this.stroking) return null;
     this.stroking = false;
     const d = this.dirty;
-    if (!d || opacity <= 0) { this._clear(this.stroke, 0); return null; }
+    if (!d) { this._clear(this.stroke, 0); return null; }
     const rect = { x: d.x0, y: d.y0, w: d.x1 - d.x0, h: d.y1 - d.y0 };
     const before = this.readRect(rect);
     this.r.pass(this.r.program(COMMIT_FS), this.b, {
-      uMask: this.a.tex, uStroke: this.stroke.tex, uOpacity: opacity, uMode: this.mode,
+      uMask: this.a.tex, uStroke: this.stroke.tex, uMode: this.mode,
     });
     this._swap();
     this._clear(this.stroke, 0);

@@ -38,6 +38,12 @@ export function slider({ label, min, max, step = 1, value, unit = '', default: d
   const decimals = (String(step).split('.')[1] || '').length;
   let current = value;
 
+  function setRange(lo, hi) {
+    min = lo;
+    max = hi;
+    for (const e of [range, input]) Object.assign(e, { min, max });
+    set(current);
+  }
   function paint() {
     range.value = current;
     input.value = Number(current).toFixed(decimals);
@@ -63,7 +69,7 @@ export function slider({ label, min, max, step = 1, value, unit = '', default: d
   lab.addEventListener('dblclick', () => { if (def != null) emit(def, false); });
 
   set(value);
-  return { el: root, set, get: () => current };
+  return { el: root, set, get: () => current, setRange };
 }
 
 export function select({ label, options, value, tip, onInput }) {

@@ -80,7 +80,13 @@ svg { display: block; }
 }
 .tool:hover { color: var(--text); background: var(--panel-2); }
 .tool.active { color: var(--accent-ink); background: var(--accent); }
-.tool.toggle.on { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, transparent); }
+.tool { position: relative; }
+.tool-sign {
+  position: absolute; right: 2px; bottom: 1px; font: 700 13px/1 var(--font); width: 13px; height: 13px;
+  display: grid; place-items: center; border-radius: 50%; background: var(--panel); color: var(--text);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.tool.active .tool-sign { background: var(--accent-ink); color: var(--accent); box-shadow: none; }
 .toolbar .sep { width: 24px; height: 1px; background: var(--line); margin: 6px 0; }
 
 /* ---------- Stage ---------- */
@@ -102,8 +108,8 @@ svg { display: block; }
 .stage.tool-center { cursor: crosshair; }
 .stage.tool-pan, .stage.space { cursor: grab; }
 .stage.panning { cursor: grabbing; }
-.stage.tool-erase, .stage.tool-restore { cursor: none; }
-.stage.tool-erase.small-brush, .stage.tool-restore.small-brush { cursor: crosshair; }
+.stage.tool-add, .stage.tool-sub { cursor: none; }
+.stage.tool-add.small-brush, .stage.tool-sub.small-brush { cursor: crosshair; }
 .stage.empty { cursor: default; }
 
 #brushCursor {
@@ -145,6 +151,8 @@ svg { display: block; }
   height: 26px; min-width: 26px; padding: 0 8px; background: transparent; border: 0; border-radius: 5px; cursor: pointer; color: var(--muted);
 }
 .zoombar button:hover { background: var(--panel-3); color: var(--text); }
+.zoombar button.pressed { background: var(--accent); color: var(--accent-ink); }
+.zb-sep { width: 1px; height: 18px; background: var(--line); margin: 0 3px; }
 #zoomLabel { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; color: var(--text); }
 
 .badge {
@@ -204,12 +212,26 @@ input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border-radius: 
 input[type=range]:focus-visible { outline: none; }
 input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(224,182,90,.45); }
 
-.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 2px; margin-bottom: 12px; }
-.seg button { height: 28px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
-.seg button.active { background: var(--panel-3); color: var(--text); box-shadow: inset 0 0 0 1px #444; }
+.hint .sign {
+  display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%;
+  background: var(--panel); box-shadow: 0 0 0 1px var(--line); font-size: 12px; line-height: 1;
+}
+.card-sub { height: 1px; background: var(--line); margin: 14px 0; }
+
+.group { border-top: 1px solid var(--line); padding-top: 10px; }
+.group summary {
+  cursor: pointer; color: var(--text); list-style: none; display: flex; align-items: center; gap: 6px; user-select: none;
+}
+.group summary::-webkit-details-marker { display: none; }
+.group summary::before {
+  content: ""; width: 6px; height: 6px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-45deg); transition: transform .15s; margin: 0 3px 0 1px;
+}
+.group[open] summary::before { transform: rotate(45deg); }
+.group .controls { margin-top: 12px; }
 .btn-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 
-.switch { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; cursor: pointer; }
+.switch { display: inline-flex; white-space: nowrap; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; cursor: pointer; }
 .switch input { position: absolute; opacity: 0; pointer-events: none; }
 .switch span { width: 28px; height: 16px; border-radius: 10px; background: #3b3b3b; position: relative; transition: background .15s; }
 .switch span::after { content: ""; position: absolute; left: 2px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: #ddd; transition: transform .15s; }
@@ -242,10 +264,9 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   .toolbar .sep { width: 1px; height: 24px; margin: 0 6px; }
   .panel { border-left: 0; border-top: 1px solid var(--line); padding: 10px 16px; }
   .brand span { display: none; }
-  #btnCompare { padding: 0 8px; }
   .top-actions .divider { display: none; }
   .shortcuts { display: none; }
 }
 @media (max-width: 420px) {
-  #btnCompare { display: none; }
+  #zoomFit { display: none; }
 }

@@ -17,8 +17,8 @@ uniform vec2 uOffset;      // posição (px do alvo) do canto superior esquerdo 
 uniform float uScale;      // px do alvo por px da imagem
 uniform vec2 uImg;         // tamanho da imagem em px
 uniform bool uFlipY;       // true quando o alvo é a tela (origem embaixo)
-uniform int uStrokeMode;   // 0 nenhum, 1 remover efeito, 2 restaurar efeito
-uniform float uStrokeOpacity;
+uniform int uStrokeMode;   // 0 nenhum, 1 marcar área, 2 desmarcar área
+uniform float uMaskOpacity; // opacidade geral da máscara
 uniform bool uShowOriginal;
 uniform bool uShowMask;
 uniform vec3 uBg;
@@ -32,14 +32,15 @@ void main() {
   // Amostras antes de qualquer desvio de fluxo (derivadas implícitas precisam de fluxo uniforme).
   vec3 orig = texture(uOrig, uv).rgb;
   vec3 fx = texture(uFx, uv).rgb;
-  float m = texture(uMask, uv).r;
-  float s = clamp(texture(uStroke, uv).a, 0.0, 1.0) * uStrokeOpacity;
+  float m = texture(uMask, uv).r;            // área marcada (1 = sem efeito)
+  float s = clamp(texture(uStroke, uv).a, 0.0, 1.0);
 
-  if (uStrokeMode == 1) m = m * (1.0 - s);
-  else if (uStrokeMode == 2) m = m + (1.0 - m) * s;
+  if (uStrokeMode == 1) m = m + (1.0 - m) * s;
+  else if (uStrokeMode == 2) m = m * (1.0 - s);
 
-  vec3 col = uShowOriginal ? orig : mix(orig, fx, m);
-  if (uShowMask) col = mix(col, vec3(1.0, 0.12, 0.18), (1.0 - m) * 0.55);
+  float amount = 1.0 - m * uMaskOpacity;
+  vec3 col = uShowOriginal ? orig : mix(orig, fx, amount);
+  if (uShowMask) col = mix(col, vec3(1.0, 0.12, 0.18), m * 0.55);
   col += (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
 
   bool inside = all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
@@ -157,7 +158,7 @@ export class Renderer {
   }
 
   /** Desenha a composição na tela. */
-  drawScreen({ view, dpr, mask, stroke, showOriginal, showMask }) {
+  drawScreen({ view, dpr, mask, stroke, maskOpacity, showOriginal, showMask }) {
     const gl = this.gl;
     const cw = gl.drawingBufferWidth, ch = gl.drawingBufferHeight;
     if (!this.src || !this.fxTex) {
@@ -186,7 +187,7 @@ export class Renderer {
       uImg: [this.src.w, this.src.h],
       uFlipY: true,
       uStrokeMode: stroke ? stroke.mode : 0,
-      uStrokeOpacity: stroke ? stroke.opacity : 0,
+      uMaskOpacity: maskOpacity,
       uShowOriginal: !!showOriginal,
       uShowMask: !!showMask,
       uBg: this.bg,
@@ -194,7 +195,7 @@ export class Renderer {
   }
 
   /** Renderiza em resolução total e devolve ImageData. */
-  exportImage(effect, params, mask) {
+  exportImage(effect, params, mask, maskOpacity) {
     const gl = this.gl;
     const { w, h } = this.src;
     const temps = [];
@@ -211,7 +212,7 @@ export class Renderer {
       this.pass(this.composite, out, {
         uOrig: this.src.tex, uFx: fxTex, uMask: mask.tex, uStroke: this.emptyTex,
         uCanvas: [w, h], uOffset: [0, 0], uScale: 1, uImg: [w, h], uFlipY: false,
-        uStrokeMode: 0, uStrokeOpacity: 0, uShowOriginal: false, uShowMask: false, uBg: this.bg,
+        uStrokeMode: 0, uMaskOpacity: maskOpacity, uShowOriginal: false, uShowMask: false, uBg: this.bg,
       });
       const data = new Uint8ClampedArray(w * h * 4);
       gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo);

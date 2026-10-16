@@ -25,28 +25,26 @@
       <button id="btnRedo" class="icon-btn" title="Refazer (Ctrl+Shift+Z)" disabled>
         <svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
       </button>
-      <button id="btnCompare" class="btn ghost" title="Segure para ver o original (tecla \)" disabled>Antes / Depois</button>
       <button id="btnExport" class="btn primary" disabled>Exportar</button>
     </div>
   </header>
 
   <main class="workspace">
     <nav class="toolbar" aria-label="Ferramentas">
-      <button class="tool active" data-tool="center" title="Mover centro do efeito (V)" aria-label="Mover centro">
+      <button class="tool active" data-tool="center" title="Mover ponto de origem do efeito (V)" aria-label="Mover ponto de origem">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg>
       </button>
-      <button class="tool" data-tool="erase" title="Pincel: remover efeito (B)" aria-label="Pincel remover efeito">
+      <button class="tool" data-tool="add" title="Pincel (+): marcar área sem efeito (B)" aria-label="Pincel adicionar área marcada">
         <svg viewBox="0 0 24 24"><path d="M18.4 3.6a2 2 0 0 1 2.8 2.8L12 15.6 8.4 12z"/><path d="M8.4 12C5.5 12 4 14 4 16.5c0 1.6-.8 2.8-2 3.5 4.6.7 9-.6 10-4.4"/></svg>
+        <span class="tool-sign">+</span>
       </button>
-      <button class="tool" data-tool="restore" title="Pincel: restaurar efeito (X alterna)" aria-label="Pincel restaurar efeito">
-        <svg viewBox="0 0 24 24"><path d="M18.4 3.6a2 2 0 0 1 2.8 2.8L12 15.6 8.4 12z"/><path d="M8.4 12C5.5 12 4 14 4 16.5c0 1.6-.8 2.8-2 3.5 4.6.7 9-.6 10-4.4"/><path d="M3 4h5M5.5 1.5v5"/></svg>
+      <button class="tool" data-tool="sub" title="Pincel (−): desmarcar área (E · X alterna)" aria-label="Pincel remover área marcada">
+        <svg viewBox="0 0 24 24"><path d="M18.4 3.6a2 2 0 0 1 2.8 2.8L12 15.6 8.4 12z"/><path d="M8.4 12C5.5 12 4 14 4 16.5c0 1.6-.8 2.8-2 3.5 4.6.7 9-.6 10-4.4"/></svg>
+        <span class="tool-sign">−</span>
       </button>
       <div class="sep"></div>
       <button class="tool" data-tool="pan" title="Mão / mover visualização (H ou segure Espaço)" aria-label="Mão">
         <svg viewBox="0 0 24 24"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M11 11.5v-8a1.5 1.5 0 0 1 3 0V12"/><path d="M14 5.5a1.5 1.5 0 0 1 3 0V12"/><path d="M17 8.5a1.5 1.5 0 0 1 3 0V15a7 7 0 0 1-7 7h-1.2a7 7 0 0 1-5.4-2.6L3.2 15a1.6 1.6 0 0 1 2.4-2.1L8 15"/></svg>
-      </button>
-      <button class="tool toggle" id="toolMask" title="Mostrar máscara em vermelho (M)" aria-label="Mostrar máscara">
-        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="4.5"/></svg>
       </button>
     </nav>
 
@@ -81,8 +79,10 @@
         <button id="zoomIn" title="Aumentar zoom (Ctrl +)">+</button>
         <button id="zoomFit" title="Ajustar à tela (Ctrl+0)">Ajustar</button>
         <button id="zoom100" title="Tamanho real (Ctrl+1)">1:1</button>
+        <span class="zb-sep"></span>
+        <button id="btnCompare" title="Alternar antes / depois (segure \ para ver rapidamente)" aria-pressed="false">Antes / Depois</button>
       </div>
-      <div class="badge" id="compareBadge" hidden>Original</div>
+      <div class="badge" id="compareBadge" hidden>Antes (original)</div>
       <div class="toast" id="toast" role="status"></div>
     </section>
 
@@ -99,20 +99,20 @@
       <section class="card">
         <div class="card-head">
           <h2>Máscara</h2>
-          <label class="switch" title="Mostrar máscara (M)">
-            <input type="checkbox" id="showMask"><span></span> Ver
+          <label class="switch" title="Mostrar a área marcada em vermelho (M)">
+            <input type="checkbox" id="showMask"><span></span> Ver área marcada
           </label>
         </div>
-        <p class="hint">Pinte sobre a foto para <b>apagar o efeito</b> onde ele não deve aparecer. Use “Restaurar” para trazê-lo de volta.</p>
-        <div class="seg" role="group" aria-label="Modo do pincel">
-          <button data-tool="erase">Remover efeito</button>
-          <button data-tool="restore">Restaurar</button>
-        </div>
+        <p class="hint">
+          Use o pincel <b class="sign">+</b> da barra de ferramentas para <b>marcar</b> as áreas onde o efeito não deve aparecer,
+          e o pincel <b class="sign">−</b> para <b>desmarcar</b>. Atalhos: B e E (X alterna).
+        </p>
         <div id="brushParams" class="controls"></div>
+        <div class="card-sub"></div>
+        <div id="maskParams" class="controls"></div>
         <div class="btn-row">
-          <button class="btn small ghost" id="maskInvert" title="Inverter máscara">Inverter</button>
-          <button class="btn small ghost" id="maskAll" title="Efeito em toda a foto">Efeito em tudo</button>
-          <button class="btn small ghost" id="maskNone" title="Remover efeito de toda a foto">Sem efeito</button>
+          <button class="btn small ghost" id="maskInvert" title="Inverter a área marcada">Inverter</button>
+          <button class="btn small ghost" id="maskClear" title="Remover toda a área marcada">Limpar</button>
         </div>
       </section>
 
@@ -125,14 +125,15 @@
       <details class="card shortcuts">
         <summary>Atalhos de teclado</summary>
         <dl>
-          <dt>V</dt><dd>Mover centro</dd>
-          <dt>B</dt><dd>Pincel</dd>
-          <dt>X</dt><dd>Alternar remover / restaurar</dd>
+          <dt>V</dt><dd>Mover ponto de origem</dd>
+          <dt>B</dt><dd>Pincel + (marcar)</dd>
+          <dt>E</dt><dd>Pincel − (desmarcar)</dd>
+          <dt>X</dt><dd>Alternar pincel + / −</dd>
           <dt>[ &nbsp; ]</dt><dd>Tamanho do pincel</dd>
           <dt>Shift + [ ]</dt><dd>Dureza</dd>
-          <dt>1 … 0</dt><dd>Opacidade 10 … 100%</dd>
-          <dt>Shift + 1 … 0</dt><dd>Fluxo 10 … 100%</dd>
-          <dt>M</dt><dd>Ver máscara</dd>
+          <dt>1 … 0</dt><dd>Fluxo 10 … 100%</dd>
+          <dt>Shift + 1 … 0</dt><dd>Opacidade da máscara</dd>
+          <dt>M</dt><dd>Ver área marcada</dd>
           <dt>\</dt><dd>Segure para ver o original</dd>
           <dt>Espaço</dt><dd>Segure para mover a visualização</dd>
           <dt>Roda do mouse</dt><dd>Zoom</dd>

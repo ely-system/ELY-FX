@@ -1,5 +1,5 @@
 import { Renderer } from './gl/renderer.js';
-import { MaskLayer, MaskHistory, ERASE, RESTORE } from './mask.js';
+import { MaskLayer, MaskHistory, ADD, SUBTRACT } from './mask.js';
 import { Viewport } from './viewport.js';
 import { effects, defaultParams } from './effects/index.js';
 import { slider, select } from './ui.js';
@@ -34,9 +34,11 @@ const state = {
   effect: effects[0],
   params: defaultParams(effects[0]),
   tool: 'center',
-  brush: { size: 250, hardness: 30, opacity: 100, flow: 100 },
+  brush: { size: 250, hardness: 30, flow: 100 },
+  maskOpacity: 100, // opacidade geral da máscara (%)
   showMask: false,
-  compare: false,
+  compare: false,      // modo antes/depois ligado pelo botão
+  compareHold: false,  // tecla \ segurada
   space: false,
   previewLong: 2048,
   live: false, // usuário arrastando um controle → prévia rápida
@@ -60,8 +62,9 @@ function frame() {
   const dpr = currentDpr();
   renderer.drawScreen({
     view, dpr, mask: state.loaded ? mask : null,
-    stroke: mask.stroking ? { mode: mask.mode, opacity: state.brush.opacity / 100 } : null,
-    showOriginal: state.compare,
+    stroke: mask.stroking ? { mode: mask.mode } : null,
+    maskOpacity: state.maskOpacity / 100,
+    showOriginal: state.compare || state.compareHold,
     showMask: state.showMask,
   });
   updateOverlay();
@@ -91,28 +94,52 @@ const effectSelect = $('#effectSelect');
 for (const fx of effects) effectSelect.append(new Option(fx.name, fx.id));
 effectSelect.addEventListener('change', () => {
   state.effect = effects.find((f) => f.id === effectSelect.value);
+  // Mantém o ponto de origem ao trocar entre efeitos que o usam.
+  const keep = { ox: state.params.ox, oy: state.params.oy };
   state.params = defaultParams(state.effect);
+  for (const k in keep) if (k in state.params && keep[k] != null) state.params[k] = keep[k];
   buildEffectControls();
   requestRender(true);
 });
 
 let paramControls = {};
-
-function resolveOptions(def) {
-  return typeof def.options === 'function' ? def.options(state.params) : def.options;
-}
+const openGroups = new Set();
 
 function buildEffectControls() {
   const host = $('#effectParams');
   host.replaceChildren();
   paramControls = {};
+  const groups = new Map();
   for (const def of state.effect.params) {
     const onInput = (v, live) => setParam(def.id, v, live);
-    const c = def.type === 'select'
-      ? select({ ...def, options: resolveOptions(def), value: state.params[def.id], onInput })
-      : slider({ ...def, value: state.params[def.id], onInput });
+    let c;
+    if (def.type === 'select') {
+      c = select({ ...def, value: state.params[def.id], onInput });
+    } else {
+      // Faixas que dependem do tamanho da foto (ex.: ponto de origem em px a partir do centro).
+      const [min, max] = def.range && state.loaded ? def.range(renderer.src.w, renderer.src.h) : [def.min, def.max];
+      c = slider({ ...def, min, max, value: state.params[def.id], onInput });
+    }
     paramControls[def.id] = c;
-    host.append(c.el);
+
+    if (!def.group) { host.append(c.el); continue; }
+    let g = groups.get(def.group);
+    if (!g) {
+      const details = document.createElement('details');
+      details.className = 'group';
+      details.open = openGroups.has(def.group);
+      details.addEventListener('toggle', () => {
+        if (details.open) openGroups.add(def.group); else openGroups.delete(def.group);
+      });
+      const summary = document.createElement('summary');
+      summary.textContent = def.group;
+      g = document.createElement('div');
+      g.className = 'controls';
+      details.append(summary, g);
+      host.append(details);
+      groups.set(def.group, g);
+    }
+    g.append(c.el);
   }
 }
 
@@ -120,9 +147,6 @@ function setParam(id, v, live = false, syncUI = false) {
   state.params[id] = v;
   state.live = live;
   if (syncUI) paramControls[id]?.set(v);
-  for (const def of state.effect.params) {
-    if (typeof def.options === 'function') paramControls[def.id].setOptions(def.options(state.params));
-  }
   requestRender(true);
 }
 
@@ -145,14 +169,18 @@ const brushControls = {
   hardness: slider({ label: 'Dureza', min: 0, max: 100, value: state.brush.hardness, default: 30, unit: '%',
     tip: 'Borda do pincel: 0% bem suave, 100% borda definida. Atalho: Shift + [ e ]',
     onInput: (v) => { state.brush.hardness = v; updateCursor(); } }),
-  opacity: slider({ label: 'Opacidade', min: 1, max: 100, value: state.brush.opacity, default: 100, unit: '%',
-    tip: 'Máximo de efeito removido em uma pincelada, mesmo passando várias vezes. Atalho: teclas 1…0',
-    onInput: (v) => { state.brush.opacity = v; requestRender(); } }),
   flow: slider({ label: 'Fluxo', min: 1, max: 100, value: state.brush.flow, default: 100, unit: '%',
-    tip: 'Quanto cada passada deposita. Fluxo baixo acumula aos poucos enquanto você pinta. Atalho: Shift + 1…0',
+    tip: 'Quanto cada passada deposita. Fluxo baixo marca aos poucos, acumulando enquanto você pinta. Atalho: teclas 1…0',
     onInput: (v) => { state.brush.flow = v; } }),
 };
 $('#brushParams').append(...Object.values(brushControls).map((c) => c.el));
+
+const maskOpacityControl = slider({
+  label: 'Opacidade da máscara', min: 0, max: 100, value: state.maskOpacity, default: 100, unit: '%',
+  tip: 'Quanto a área marcada protege a foto do efeito. 100% = nenhum efeito na área marcada. Atalho: Shift + 1…0',
+  onInput: (v) => { state.maskOpacity = v; requestRender(); },
+});
+$('#maskParams').append(maskOpacityControl.el);
 
 function setBrush(key, v) {
   const c = brushControls[key];
@@ -162,9 +190,14 @@ function setBrush(key, v) {
   requestRender();
 }
 
+function setMaskOpacity(v) {
+  maskOpacityControl.set(v);
+  state.maskOpacity = maskOpacityControl.get();
+  requestRender();
+}
+
 $('#maskInvert').addEventListener('click', () => maskOp(() => mask.invert()));
-$('#maskAll').addEventListener('click', () => maskOp(() => mask.fill(1)));
-$('#maskNone').addEventListener('click', () => maskOp(() => mask.fill(0)));
+$('#maskClear').addEventListener('click', () => maskOp(() => mask.fill(0)));
 
 function maskOp(fn) {
   if (!state.loaded) return;
@@ -175,12 +208,10 @@ function maskOp(fn) {
 
 const showMaskInput = $('#showMask');
 showMaskInput.addEventListener('change', () => setShowMask(showMaskInput.checked));
-$('#toolMask').addEventListener('click', () => setShowMask(!state.showMask));
 
 function setShowMask(on) {
   state.showMask = on;
   showMaskInput.checked = on;
-  $('#toolMask').classList.toggle('on', on);
   requestRender();
 }
 
@@ -208,15 +239,15 @@ $('#previewParams').append(select({
 function setTool(tool) {
   state.tool = tool;
   for (const b of document.querySelectorAll('[data-tool]')) b.classList.toggle('active', b.dataset.tool === tool);
-  stage.classList.remove('tool-center', 'tool-erase', 'tool-restore', 'tool-pan');
+  stage.classList.remove('tool-center', 'tool-add', 'tool-sub', 'tool-pan');
   stage.classList.add('tool-' + tool);
-  overlay.classList.toggle('dim', tool === 'erase' || tool === 'restore');
+  overlay.classList.toggle('dim', tool === 'add' || tool === 'sub');
   updateCursor();
 }
 for (const b of document.querySelectorAll('[data-tool]')) b.addEventListener('click', () => setTool(b.dataset.tool));
 setTool('center');
 
-const isBrush = () => state.tool === 'erase' || state.tool === 'restore';
+const isBrush = () => state.tool === 'add' || state.tool === 'sub';
 
 // ---------------------------------------------------------------------------
 // Overlay (alvo do centro, anéis da área nítida) e cursor do pincel
@@ -336,7 +367,7 @@ function endPointer(e) {
   }
   if (!drag) return;
   if (drag.type === 'paint') {
-    history.push(mask.endStroke(state.brush.opacity / 100));
+    history.push(mask.endStroke());
     updateHistoryButtons();
   } else if (drag.type === 'center') {
     state.live = false;
@@ -360,18 +391,17 @@ function setPanning(on) {
 }
 
 function moveCenter(p, live) {
+  if (!state.effect.originParams) return;
   const [ix, iy] = view.toImage(p[0], p[1]);
-  const cx = clamp((ix / renderer.src.w) * 100, 0, 100);
-  const cy = clamp((iy / renderer.src.h) * 100, 0, 100);
-  setParam('cx', round1(cx), live, true);
-  setParam('cy', round1(cy), live, true);
+  const o = state.effect.originParams(ix, iy, renderer.src.w, renderer.src.h);
+  for (const k in o) setParam(k, o[k], live, true);
 }
 
 // --- Pincel ---
 
 function beginPaint(p) {
   const [ix, iy] = view.toImage(p[0], p[1]);
-  mask.beginStroke(state.tool === 'erase' ? ERASE : RESTORE);
+  mask.beginStroke(state.tool === 'add' ? ADD : SUBTRACT);
   drag = { type: 'paint', x: ix, y: iy, carry: 0 };
   dabAt(ix, iy);
   requestRender();
@@ -514,11 +544,15 @@ async function openFile(file) {
     view.setImage(w, h);
 
     state.loaded = true;
+    // Ponto de origem volta ao centro e as faixas dos controles passam a seguir o tamanho da foto.
+    if ('ox' in state.params) state.params.ox = 0;
+    if ('oy' in state.params) state.params.oy = 0;
+    buildEffectControls();
     state.fileName = file.name.replace(/\.[^.]+$/, '') || 'foto';
     $('#dropzone').hidden = true;
     $('#zoombar').hidden = false;
     stage.classList.remove('empty');
-    for (const id of ['#btnExport', '#btnCompare']) $(id).disabled = false;
+    $('#btnExport').disabled = false;
     $('#imgInfo').textContent = `${state.fileName} — ${w} × ${h} px` + (mask.scale < 1 ? ` · máscara ${mask.w} × ${mask.h} px` : '');
     updateZoomLabel();
     requestRender(true);
@@ -543,20 +577,22 @@ function redo() { if (drag?.type !== 'paint' && history.redo()) { updateHistoryB
 $('#btnUndo').addEventListener('click', undo);
 $('#btnRedo').addEventListener('click', redo);
 
-function setCompare(on) {
-  if (!state.loaded) on = false;
-  if (state.compare === on) return;
-  state.compare = on;
+const btnCompare = $('#btnCompare');
+
+function updateCompare() {
+  const on = state.loaded && (state.compare || state.compareHold);
   $('#compareBadge').hidden = !on;
-  $('#btnCompare').classList.toggle('pressed', on);
+  btnCompare.classList.toggle('pressed', state.compare);
+  btnCompare.setAttribute('aria-pressed', String(state.compare));
   requestRender();
 }
-const btnCompare = $('#btnCompare');
-btnCompare.addEventListener('pointerdown', (e) => { btnCompare.setPointerCapture(e.pointerId); setCompare(true); });
-btnCompare.addEventListener('pointerup', () => setCompare(false));
-btnCompare.addEventListener('pointercancel', () => setCompare(false));
-btnCompare.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setCompare(true); } });
-btnCompare.addEventListener('keyup', () => setCompare(false));
+function setCompare(on) { state.compare = on; updateCompare(); }
+function setCompareHold(on) {
+  if (state.compareHold === on) return;
+  state.compareHold = on;
+  updateCompare();
+}
+btnCompare.addEventListener('click', () => setCompare(!state.compare));
 
 // ---------------------------------------------------------------------------
 // Atalhos de teclado
@@ -590,13 +626,13 @@ window.addEventListener('keydown', (e) => {
     if (!state.space) { state.space = true; stage.classList.add('space'); updateCursor(); }
     return;
   }
-  if (e.code === 'Backslash' || e.code === 'IntlBackslash') { e.preventDefault(); setCompare(true); return; }
+  if (e.code === 'Backslash' || e.code === 'IntlBackslash') { e.preventDefault(); setCompareHold(true); return; }
 
   switch (e.code) {
     case 'KeyV': setTool('center'); return;
-    case 'KeyB': if (!isBrush()) setTool('erase'); return;
-    case 'KeyE': setTool('erase'); return;
-    case 'KeyX': setTool(state.tool === 'erase' ? 'restore' : 'erase'); return;
+    case 'KeyB': setTool('add'); return;
+    case 'KeyE': setTool('sub'); return;
+    case 'KeyX': setTool(state.tool === 'add' ? 'sub' : 'add'); return;
     case 'KeyH': setTool('pan'); return;
     case 'KeyM': setShowMask(!state.showMask); return;
     case 'BracketLeft':
@@ -611,16 +647,17 @@ window.addEventListener('keydown', (e) => {
   const digit = /^Digit(\d)$/.exec(e.code);
   if (digit) {
     const v = digit[1] === '0' ? 100 : Number(digit[1]) * 10;
-    setBrush(e.shiftKey ? 'flow' : 'opacity', v);
-    toast((e.shiftKey ? 'Fluxo ' : 'Opacidade ') + v + '%', 900);
+    if (e.shiftKey) setMaskOpacity(v);
+    else setBrush('flow', v);
+    toast((e.shiftKey ? 'Opacidade da máscara ' : 'Fluxo ') + v + '%', 900);
   }
 });
 
 window.addEventListener('keyup', (e) => {
   if (e.code === 'Space') { state.space = false; stage.classList.remove('space'); updateCursor(); }
-  if (e.code === 'Backslash' || e.code === 'IntlBackslash') setCompare(false);
+  if (e.code === 'Backslash' || e.code === 'IntlBackslash') setCompareHold(false);
 });
-window.addEventListener('blur', () => { state.space = false; stage.classList.remove('space'); setCompare(false); });
+window.addEventListener('blur', () => { state.space = false; stage.classList.remove('space'); setCompareHold(false); });
 
 function sizeStep(s, up) {
   const step = s < 10 ? 1 : s < 50 ? 5 : s < 100 ? 10 : s < 300 ? 25 : s < 1000 ? 50 : 100;
@@ -653,7 +690,7 @@ $('#expGo').addEventListener('click', async (e) => {
   await new Promise((r) => setTimeout(r, 30));
   try {
     const type = expFormat.value;
-    const img = renderer.exportImage(state.effect, state.params, mask);
+    const img = renderer.exportImage(state.effect, state.params, mask, state.maskOpacity / 100);
     requestRender(true); // os buffers da prévia continuam válidos, mas o estado do GL mudou
     const c = document.createElement('canvas');
     c.width = img.width;
@@ -694,7 +731,6 @@ function toast(msg, ms = 2500) {
 }
 
 function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
-function round1(v) { return Math.round(v * 10) / 10; }
 
 stage.classList.add('empty');
 canvas.addEventListener('webglcontextlost', (e) => {

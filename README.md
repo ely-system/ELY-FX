@@ -5,23 +5,29 @@ Efeitos fotográficos direto no navegador, sem Photoshop. Tudo roda localmente n
 ## Efeitos
 
 ### Desfoque radial
-Equivalente ao *Filtro › Desfoque › Desfoque radial* do Photoshop.
+Equivalente ao *Filtro › Desfoque › Desfoque radial › Giro* do Photoshop: rastro circular ao redor do ponto de origem.
 
-- **Método:** Giro (rotação em torno do centro) ou Zoom (rastro em direção ao centro).
-- **Direção:** nos dois sentidos, ou rastro de movimento só para um lado (horário / anti-horário, para fora / para dentro).
+### Desfoque de zoom
+Equivalente ao *Desfoque radial › Zoom* do Photoshop: rastro em linha reta saindo do ponto de origem.
+
+Controles dos dois efeitos:
+
+- **Direção:** nos dois sentidos, ou rastro só para um lado (horário / anti-horário; para fora / para dentro).
 - **Intensidade:** 0–100.
-- **Centro:** arraste o alvo sobre a foto (ferramenta V) ou use os controles.
-- **Área nítida no centro** e **suavidade da transição:** mantém o centro sem desfoque.
-- **Qualidade:** rascunho, boa ou ótima (o desfoque é feito em múltiplos passes para um rastro contínuo).
+- **Área nítida** e **suavidade da transição:** mantém a região do ponto de origem sem desfoque.
+- **Qualidade:** rascunho, boa ou ótima.
+- **Posição do ponto de origem** (grupo recolhível): em pixels a partir do centro da foto — horizontal positivo = direita, vertical positivo = cima. Também pode ser arrastado sobre a foto (ferramenta V).
 
 ## Máscara
 
-Pinte sobre a foto para remover o efeito onde ele não deve aparecer, ou restaure-o.
+A máscara define a **área marcada**, onde o efeito não aparece.
 
-- **Tamanho** e **dureza** do pincel.
-- **Opacidade:** limite máximo de cada pincelada, mesmo passando várias vezes.
-- **Fluxo:** quanto cada passada deposita; com fluxo baixo o efeito é removido aos poucos (como no Photoshop).
-- Inverter, aplicar em tudo, remover de tudo, ver máscara em vermelho (M) e desfazer/refazer (Ctrl+Z / Ctrl+Shift+Z).
+- **Pincel +** (B) marca área; **pincel −** (E) desmarca; X alterna.
+- **Tamanho**, **dureza** e **fluxo** do pincel (fluxo baixo marca aos poucos, acumulando).
+- **Opacidade da máscara:** geral, controla quanto a área marcada protege a foto.
+- **Ver área marcada** (M), **Inverter**, **Limpar** e desfazer/refazer (Ctrl+Z / Ctrl+Shift+Z).
+
+**Antes / Depois** fica na barra de zoom, ao lado do 1:1 (ou segure `\`).
 
 ## Exportação
 
@@ -53,7 +59,9 @@ js/mask.js              máscara pintada na GPU + histórico
 js/viewport.js          zoom e deslocamento
 js/ui.js                controles (sliders, seletores)
 js/effects/index.js     registro de efeitos
+js/effects/radialCommon.js  base dos desfoques com ponto de origem
 js/effects/radialBlur.js
+js/effects/zoomBlur.js
 ```
 
-Para adicionar um efeito novo, crie um módulo em `js/effects/` com `id`, `name`, `params` e `render()` (veja `radialBlur.js`) e registre-o em `js/effects/index.js`. Os controles do painel são gerados automaticamente a partir de `params`.
+Para adicionar um efeito novo, crie um módulo em `js/effects/` com `id`, `name`, `params` e `render()` (veja `radialBlur.js` / `radialCommon.js`) e registre-o em `js/effects/index.js`. Os controles do painel são gerados automaticamente a partir de `params`.
