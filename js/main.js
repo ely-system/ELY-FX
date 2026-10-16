@@ -292,6 +292,23 @@ function updateCursor() {
   cursorEl.style.left = lastPointer[0] + 'px';
   cursorEl.style.top = lastPointer[1] + 'px';
   cursorEl.style.setProperty('--inner', (d * state.brush.hardness / 100) + 'px');
+  // Ao ajustar a dureza, mostra o degradê real da ponta do pincel em vermelho (como no Photoshop).
+  const preview = drag?.type === 'hardness';
+  cursorEl.classList.toggle('preview', preview);
+  cursorEl.style.background = preview ? falloffGradient(state.brush.hardness / 100) : '';
+}
+
+/** Mesma curva do shader do pincel: 1 − smoothstep(dureza, 1, distância / raio). */
+function falloffGradient(h) {
+  const stops = [`rgba(255,32,48,0.7) 0%`, `rgba(255,32,48,0.7) ${h * 100}%`];
+  const n = 16;
+  for (let i = 1; i <= n; i++) {
+    const t = h + (1 - h) * (i / n);
+    const u = (t - h) / Math.max(1e-6, 1 - h);
+    const a = 1 - u * u * (3 - 2 * u);
+    stops.push(`rgba(255,32,48,${(a * 0.7).toFixed(3)}) ${(t * 100).toFixed(2)}%`);
+  }
+  return `radial-gradient(circle closest-side, ${stops.join(', ')})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -312,7 +329,7 @@ stage.addEventListener('pointerdown', (e) => {
   if (e.target.closest('.zoombar')) return;
   const p = local(e);
   pointers.set(e.pointerId, p);
-  stage.setPointerCapture(e.pointerId);
+  try { stage.setPointerCapture(e.pointerId); } catch { /* ponteiro já liberado */ }
   e.preventDefault();
 
   if (pointers.size === 2) {
@@ -387,6 +404,7 @@ function endPointer(e) {
   }
   if (drag.type === 'pan') setPanning(false);
   drag = null;
+  updateCursor();
   requestRender();
 }
 stage.addEventListener('pointerup', endPointer);
@@ -563,6 +581,7 @@ async function openFile(file) {
     mask.init(w, h);
     history.clear();
     updateHistoryButtons();
+    view.setSize(stage.clientWidth, stage.clientHeight);
     view.setImage(w, h);
 
     state.loaded = true;

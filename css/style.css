@@ -122,6 +122,7 @@ svg { display: block; }
   transform: translate(-50%, -50%); border-radius: 50%; border: 1px dashed rgba(255,255,255,.45);
 }
 #brushCursor.visible { display: block; }
+#brushCursor.preview::after { display: none; }
 
 .dropzone {
   position: absolute; inset: 0; display: grid; place-items: center; padding: 24px;
