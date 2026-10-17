@@ -102,7 +102,8 @@ export function select({ label, options, value, tip, onInput }) {
 /**
  * Slider para toque, no estilo Lightroom mobile: arrastar na horizontal em qualquer ponto da linha
  * ajusta o valor (relativo, sem saltos); toque solto não muda nada; arrasto vertical rola a lista;
- * dois toques rápidos voltam ao valor padrão. `log: true` usa escala logarítmica (ex.: tamanho do pincel).
+ * dois toques rápidos voltam ao valor padrão; tocar no número permite digitar o valor.
+ * `log: true` usa escala logarítmica (ex.: tamanho do pincel).
  */
 export function touchSlider({ label, min, max, step = 1, value, unit = '', default: def, log = false, onInput }) {
   const root = el('div', 'tslider');
@@ -110,7 +111,9 @@ export function touchSlider({ label, min, max, step = 1, value, unit = '', defau
   root.setAttribute('role', 'slider');
   root.setAttribute('aria-label', label);
   const head = el('div', 'ts-head');
-  const val = el('span', 'ts-value');
+  const val = el('button', 'ts-value');
+  val.type = 'button';
+  val.title = 'Tocar para digitar o valor';
   head.append(el('span', 'ts-label', label), val);
   const track = el('div', 'ts-track');
   const fill = el('div', 'ts-fill');
@@ -146,9 +149,43 @@ export function touchSlider({ label, min, max, step = 1, value, unit = '', defau
     if (current !== before || !live) onInput?.(current, live);
   }
 
+  // Digitar o valor: o número vira um campo; Enter ou sair do campo aplica, Esc cancela.
+  let input = null;
+  function startEdit() {
+    if (input) return;
+    input = el('input', 'ts-input');
+    // Com valores negativos usa o teclado numérico com sinal de menos.
+    if (min < 0) input.type = 'number';
+    else { input.type = 'text'; input.inputMode = decimals ? 'decimal' : 'numeric'; }
+    input.value = Number(current).toFixed(decimals);
+    input.setAttribute('aria-label', label);
+    input.enterKeyHint = 'done';
+    val.replaceWith(input);
+    input.focus();
+    input.select();
+    let done = false;
+    const finish = (apply) => {
+      if (done) return;
+      done = true;
+      const v = parseFloat(String(input.value).replace(',', '.'));
+      input.replaceWith(val);
+      input = null;
+      if (apply && Number.isFinite(v)) emit(v, false);
+      else paint();
+    };
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener('blur', () => finish(true));
+  }
+  val.addEventListener('click', startEdit);
+
   let g = null;
   let lastTap = 0;
   root.addEventListener('pointerdown', (e) => {
+    if (e.target === val || e.target === input) { g = null; return; } // toque no número = digitar
     g = { id: e.pointerId, x: e.clientX, y: e.clientY, active: false };
   });
   root.addEventListener('pointermove', (e) => {
@@ -182,6 +219,7 @@ export function touchSlider({ label, min, max, step = 1, value, unit = '', defau
   root.addEventListener('pointerup', end);
   root.addEventListener('pointercancel', end);
   root.addEventListener('keydown', (e) => {
+    if (e.target !== root) return;
     const d = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
     if (!d) return;
     e.preventDefault();
