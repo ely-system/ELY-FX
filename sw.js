@@ -17,6 +17,7 @@ const SHELL = [
   './js/ui.js',
   './js/viewport.js',
   './js/mask.js',
+  './js/presets.js',
   './js/gl/glutil.js',
   './js/gl/renderer.js',
   './js/effects/index.js',

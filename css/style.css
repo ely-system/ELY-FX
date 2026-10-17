@@ -289,6 +289,34 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
 .cp-swatches { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; margin-top: 14px; }
 .cp-swatch { aspect-ratio: 1; border-radius: 50%; border: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,255,255,.3); }
 
+/* ---------- Presets ---------- */
+.card-head-actions { display: flex; align-items: center; gap: 4px; }
+.icon-btn.small-icon { width: 28px; height: 28px; color: var(--muted); }
+.icon-btn.small-icon:hover { color: var(--text); }
+.preset-dialog { width: min(440px, calc(100vw - 32px)); }
+.preset-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.preset-head h3 { margin: 0; }
+.icon-btn svg { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.preset-save { display: flex; gap: 8px; margin: 10px 0 12px; }
+.preset-save input {
+  flex: 1; min-width: 0; height: 32px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text);
+}
+.preset-save input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+.preset-list { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }
+.preset-empty { color: var(--muted); font-size: 13px; padding: 10px 2px; }
+.preset-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 8px;
+  background: var(--panel); border: 1px solid var(--line);
+}
+.preset-info { flex: 1; min-width: 0; }
+.preset-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preset-meta { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preset-row .icon-btn { width: 32px; height: 32px; color: var(--muted); flex: none; }
+.preset-row .icon-btn:hover { color: var(--text); }
+.preset-row .icon-btn.del:hover { color: var(--danger); }
+.preset-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
 /* ---------- Camadas de efeito ---------- */
 #layersCard { position: relative; }
 .layer-list { display: flex; flex-direction: column; gap: 4px; }
@@ -504,7 +532,14 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   /* abas Efeitos (camadas) e Ajustes */
   .mui-head { display: flex; align-items: center; justify-content: space-between; min-height: 32px; font-size: 14px; font-weight: 600; color: #f0f0f0; }
   .mui-head .link-btn { font-size: 13px; color: #cfcfcf; }
-  .mui-add { width: 100%; height: 40px; margin: 2px 0 10px; }
+  .mui-add-row { display: flex; gap: 8px; margin: 2px 0 10px; }
+  .mui-add { flex: 1; height: 40px; }
+  .mui-presets { height: 40px; padding: 0 14px; background: rgba(0,0,0,.35); border-color: rgba(255,255,255,.14); }
+  /* Sem foto aberta, as abas ficam apagadas e desativadas. */
+  .mui.disabled .mtabs { opacity: .35; pointer-events: none; }
+  .preset-save input, .preset-save .btn { height: 40px; font-size: 16px; }
+  .preset-list { max-height: 40dvh; }
+  .preset-row .icon-btn { width: 40px; height: 40px; }
   .mui-list .layer-list { gap: 6px; }
   .mui-list .layer-row { height: 46px; background: rgba(0,0,0,.35); border-color: rgba(255,255,255,.1); }
   .mui-list .layer-row.selected { border-color: var(--accent); background: rgba(224,182,90,.14); }

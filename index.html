@@ -123,7 +123,10 @@
       <section class="card" id="layersCard">
         <div class="card-head">
           <h2>Efeitos</h2>
-          <button class="btn small" id="btnAddFx" aria-haspopup="true" aria-expanded="false">+ Adicionar</button>
+          <div class="card-head-actions">
+            <button class="icon-btn small-icon" id="btnPresets" title="Presets (salvar e aplicar conjuntos de efeitos)" aria-label="Presets"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg></button>
+            <button class="btn small" id="btnAddFx" aria-haspopup="true" aria-expanded="false">+ Adicionar</button>
+          </div>
         </div>
         <div class="fx-popover" id="fxPopover" hidden></div>
         <div class="layer-list" id="layerList" role="list" aria-label="Camadas de efeito"></div>
@@ -243,6 +246,25 @@
         </div>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="presetDialog" class="dialog preset-dialog">
+    <div class="preset-head">
+      <h3>Presets</h3>
+      <button class="icon-btn" id="presetClose" aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <p class="hint small">Guardam os efeitos, a ordem e todos os ajustes (as máscaras não, pois dependem de cada foto).
+      Ficam salvos neste navegador — <b>exporte</b> para não perder ao limpar os dados.</p>
+    <div class="preset-save">
+      <input id="presetName" placeholder="Nome do novo preset" maxlength="60" autocomplete="off" enterkeyhint="done">
+      <button class="btn primary small" id="presetSave">Salvar atual</button>
+    </div>
+    <div class="preset-list" id="presetList"></div>
+    <div class="preset-actions">
+      <button class="btn ghost small" id="presetImport">Importar arquivo</button>
+      <button class="btn ghost small" id="presetExportAll">Exportar todos</button>
+    </div>
+    <input type="file" id="presetFile" accept=".json,application/json" hidden>
   </dialog>
 
   <dialog id="installDialog" class="dialog">

@@ -2,6 +2,7 @@ import { Renderer } from './gl/renderer.js';
 import { MaskStore, History, ADD, SUBTRACT } from './mask.js';
 import { Viewport } from './viewport.js';
 import { effectsByGroup, defaultParams, visibleParams } from './effects/index.js';
+import { loadPresets, savePresets, makePreset, presetToLayers, presetsFile, parsePresetsFile, uniqueName } from './presets.js';
 import { MAX_STARS } from './effects/starburst.js';
 import { slider, select, touchSlider, colorField } from './ui.js';
 import { APP_VERSION } from './version.js';
@@ -1205,6 +1206,7 @@ async function openFile(file) {
     $('#zoombar').hidden = false;
     stage.classList.remove('empty');
     $('#btnExport').disabled = false;
+    mui.classList.remove('disabled');
     buildSettings();
     layersChanged();
     muiBuild();
@@ -1261,7 +1263,7 @@ const isTyping = (e) => {
 };
 
 window.addEventListener('keydown', (e) => {
-  if ($('#exportDialog').open) return;
+  if ($('#exportDialog').open || presetDlg?.open) return;
   const ctrl = e.ctrlKey || e.metaKey;
   const k = e.key.toLowerCase();
 
@@ -1539,15 +1541,23 @@ function muiBuild() {
       head.append(cancel);
       frag.append(head, buildFxPicker((fx) => { muiPicking = false; addLayer(fx); muiSetTab('adjust', true); }));
     } else {
+      const row = document.createElement('div');
+      row.className = 'mui-add-row';
       const add = document.createElement('button');
       add.type = 'button';
       add.className = 'btn primary mui-add';
       add.textContent = '+ Adicionar efeito';
       add.addEventListener('click', muiOpenPicker);
+      const pre = document.createElement('button');
+      pre.type = 'button';
+      pre.className = 'btn mui-presets';
+      pre.textContent = 'Presets';
+      pre.addEventListener('click', openPresets);
+      row.append(add, pre);
       const list = document.createElement('div');
       list.className = 'layer-list';
       renderLayerList(list, { onSelect: () => muiSetTab('adjust', true) });
-      frag.append(add, list);
+      frag.append(row, list);
     }
     muiList.replaceChildren(frag);
     return;
@@ -1682,6 +1692,7 @@ function muiSetTab(tab, forceOpen = false) {
 
 function muiApply() {
   mui.classList.toggle('collapsed', !muiOpen);
+  mui.classList.toggle('disabled', !state.loaded);
   // Painel recolhido: nenhuma aba fica marcada.
   for (const b of mui.querySelectorAll('.mtabs [data-tab]')) b.classList.toggle('active', muiOpen && b.dataset.tab === muiTab);
   // No celular a ferramenta segue a aba: Máscara = pincel; as outras = mover ponto de origem.
@@ -1842,6 +1853,155 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) checkForUpdate(); 
 window.addEventListener('online', checkForUpdate);
 setInterval(checkForUpdate, 5 * 60 * 1000);
 checkForUpdate();
+
+// ---------------------------------------------------------------------------
+// Presets: salvar a pilha de efeitos e reaplicar em outras fotos
+// ---------------------------------------------------------------------------
+
+const presetDlg = $('#presetDialog');
+const ICON_APPLY = '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>';
+const ICON_EXPORT = '<svg viewBox="0 0 24 24"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>';
+
+$('#btnPresets').addEventListener('click', openPresets);
+$('#presetClose').addEventListener('click', () => presetDlg.close());
+
+function openPresets() {
+  renderPresets();
+  $('#presetName').value = '';
+  presetDlg.showModal();
+}
+
+function renderPresets() {
+  const host = $('#presetList');
+  const list = loadPresets();
+  host.replaceChildren();
+  $('#presetSave').disabled = !state.layers.length;
+  $('#presetName').placeholder = state.layers.length ? 'Nome do novo preset' : 'Adicione efeitos para salvar um preset';
+  $('#presetExportAll').disabled = !list.length;
+  if (!list.length) {
+    const p = document.createElement('div');
+    p.className = 'preset-empty';
+    p.textContent = 'Nenhum preset salvo ainda.';
+    host.append(p);
+    return;
+  }
+  for (const pr of list.slice().reverse()) {
+    const row = document.createElement('div');
+    row.className = 'preset-row';
+    const info = document.createElement('div');
+    info.className = 'preset-info';
+    const name = document.createElement('div');
+    name.className = 'preset-name';
+    name.textContent = pr.name;
+    const meta = document.createElement('div');
+    meta.className = 'preset-meta';
+    const n = pr.layers.length;
+    meta.textContent = `${n} efeito${n === 1 ? '' : 's'}`;
+    info.append(name, meta);
+    const apply = document.createElement('button');
+    apply.className = 'btn primary small';
+    apply.textContent = 'Aplicar';
+    apply.addEventListener('click', () => { applyPreset(pr); presetDlg.close(); });
+    const exp = document.createElement('button');
+    exp.className = 'icon-btn';
+    exp.title = 'Exportar este preset';
+    exp.setAttribute('aria-label', 'Exportar ' + pr.name);
+    exp.innerHTML = ICON_EXPORT;
+    exp.addEventListener('click', () => exportPresets([pr], pr.name));
+    const del = document.createElement('button');
+    del.className = 'icon-btn del';
+    del.title = 'Excluir';
+    del.setAttribute('aria-label', 'Excluir ' + pr.name);
+    del.innerHTML = ICON_DEL;
+    del.addEventListener('click', () => {
+      if (!confirm(`Excluir o preset “${pr.name}”?`)) return;
+      savePresets(loadPresets().filter((p) => p.id !== pr.id));
+      renderPresets();
+    });
+    row.append(info, apply, exp, del);
+    host.append(row);
+  }
+}
+
+function saveCurrentPreset() {
+  if (!state.loaded || !state.layers.length) return;
+  const list = loadPresets();
+  const name = uniqueName($('#presetName').value || `Preset ${list.length + 1}`, list);
+  list.push(makePreset(name, state.layers, { w: renderer.src.w, h: renderer.src.h }));
+  if (!savePresets(list)) { toast('Não foi possível salvar: armazenamento do navegador cheio ou bloqueado.', 4000); return; }
+  $('#presetName').value = '';
+  renderPresets();
+  toast(`Preset “${name}” salvo.`, 1800);
+}
+$('#presetSave').addEventListener('click', saveCurrentPreset);
+$('#presetName').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveCurrentPreset(); } });
+
+/** Troca a pilha inteira (usado pelo preset e pelo desfazer). */
+function setStack(next) {
+  for (const L of state.layers) if (!next.includes(L)) renderer.disposeLayer(L);
+  state.layers = next.slice();
+  for (const L of state.layers) { L.fxDirty = true; L.mixDirty = true; }
+  state.selected = null;
+  selectLayer(state.layers[state.layers.length - 1] || null);
+  layersChanged();
+  dirtyFrom(0);
+}
+
+function applyPreset(pr) {
+  if (!state.loaded) { toast('Abra uma foto para aplicar o preset.'); return; }
+  const specs = presetToLayers(pr, { w: renderer.src.w, h: renderer.src.h });
+  if (!specs.length) { toast('Este preset não tem efeitos compatíveis.'); return; }
+  const before = state.layers.slice();
+  const after = specs.map((s) => {
+    const L = createLayer(s.effect);
+    Object.assign(L.params, s.params);
+    L.fxOpacity = s.fxOpacity;
+    L.maskOpacity = s.maskOpacity;
+    L.visible = s.visible;
+    return L;
+  });
+  setStack(after);
+  // Desfazer volta à pilha anterior; as camadas ficam guardadas enquanto o histórico precisar delas.
+  const all = [...new Set([...before, ...after])];
+  for (const L of all) L.refs++;
+  history.push({
+    undo: () => setStack(before),
+    redo: () => setStack(after),
+    dispose: () => { for (const L of all) { L.refs--; maybeDestroy(L); } },
+  });
+  updateHistoryButtons();
+  if (mobileLayout.matches) muiSetTab('layers', true);
+  toast(`Preset “${pr.name}” aplicado.`, 1800);
+}
+
+function exportPresets(list, name) {
+  const blob = new Blob([presetsFile(list)], { type: 'application/json' });
+  const safe = String(name || 'presets').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'presets';
+  const fileName = `elyfx-${safe}.json`;
+  const file = new File([blob], fileName, { type: 'application/json' });
+  // No celular, o menu de compartilhar permite guardar o arquivo onde quiser (Arquivos, Drive…).
+  if (coarse && navigator.canShare?.({ files: [file] })) {
+    navigator.share({ files: [file], title: fileName }).catch((err) => { if (err.name !== 'AbortError') downloadBlob(blob, fileName); });
+  } else downloadBlob(blob, fileName);
+}
+$('#presetExportAll').addEventListener('click', () => exportPresets(loadPresets(), 'presets'));
+
+$('#presetImport').addEventListener('click', () => $('#presetFile').click());
+$('#presetFile').addEventListener('change', async () => {
+  const f = $('#presetFile').files[0];
+  $('#presetFile').value = '';
+  if (!f) return;
+  try {
+    const incoming = parsePresetsFile(await f.text());
+    const list = loadPresets();
+    for (const p of incoming) list.push({ ...p, name: uniqueName(p.name, list) });
+    if (!savePresets(list)) throw new Error('armazenamento do navegador cheio ou bloqueado');
+    renderPresets();
+    toast(`${incoming.length} preset${incoming.length === 1 ? '' : 's'} importado${incoming.length === 1 ? '' : 's'}.`, 2200);
+  } catch (err) {
+    toast('Não foi possível importar: ' + err.message, 4000);
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Diagnóstico de tela (5 toques rápidos no logo): medidas reais do aparelho para ajustar margens.

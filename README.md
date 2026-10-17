@@ -12,6 +12,14 @@ Vários efeitos podem ser aplicados na mesma foto, como camadas simplificadas:
 - Cada efeito tem a própria **opacidade**, **máscara** e **opacidade da máscara**.
 - Desfazer/refazer inclui adicionar, remover e reordenar efeitos, pinceladas e o ponto de origem.
 
+## Presets
+
+O botão de **Presets** (ícone de marcador no cartão Efeitos; no celular, ao lado de “+ Adicionar efeito”) salva a pilha
+atual — efeitos, ordem, ajustes, opacidades e visibilidade — para aplicar em outras fotos. As máscaras não entram,
+pois dependem de cada foto. Pontos de luz e ponto de origem são guardados em proporção da foto, e as medidas em px
+se ajustam ao tamanho da nova foto. Os presets ficam no navegador (armazenamento local); use **Exportar** para guardar
+um arquivo .json e **Importar arquivo** para trazê-los de volta (ou para outro aparelho). Aplicar um preset pode ser desfeito.
+
 ## Efeitos
 
 ### Desfoque radial
@@ -123,7 +131,8 @@ js/gl/renderer.js       pipeline WebGL2 (efeito → composição com máscara)
 js/gl/glutil.js         utilitários WebGL
 js/mask.js              máscara pintada na GPU + histórico
 js/viewport.js          zoom e deslocamento
-js/ui.js                controles (sliders, seletores)
+js/ui.js                controles (sliders, seletores, seletor de cor)
+js/presets.js           presets: salvar, aplicar, exportar e importar
 js/effects/index.js     registro de efeitos
 js/effects/radialCommon.js  base dos desfoques com ponto de origem
 js/effects/radialBlur.js
