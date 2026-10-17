@@ -11,9 +11,9 @@ function el(tag, cls, text) {
 
 /**
  * Slider com campo numérico. Duplo clique no nome restaura o valor padrão.
- * onInput(v, live): live = true enquanto o usuário arrasta.
+ * onInput(v, live): live = true enquanto o usuário arrasta. `log: true` usa escala logarítmica.
  */
-export function slider({ label, min, max, step = 1, value, unit = '', default: def, tip, track, onInput }) {
+export function slider({ label, min, max, step = 1, value, unit = '', default: def, tip, track, log = false, onInput }) {
   const id = 'ctl' + ++uid;
   const root = el('div', 'ctl ctl-range' + (track ? ' tracked' : ''));
   if (track) root.style.setProperty('--track', `linear-gradient(to right, ${track.join(', ')})`);
@@ -33,22 +33,34 @@ export function slider({ label, min, max, step = 1, value, unit = '', default: d
   const range = el('input');
   range.type = 'range';
   range.id = id;
-  Object.assign(range, { min, max, step });
+  // Em escala log, o slider anda de 0 a 1000 e o valor é convertido.
+  if (log) Object.assign(range, { min: 0, max: 1000, step: 1 });
+  else Object.assign(range, { min, max, step });
   root.append(head, range);
 
   const decimals = (String(step).split('.')[1] || '').length;
   let current = value;
+  const toT = (v) => log
+    ? (Math.log(Math.max(v, 1e-6)) - Math.log(Math.max(min, 1e-6))) / (Math.log(max) - Math.log(Math.max(min, 1e-6)))
+    : (v - min) / (max - min);
+  const fromRange = (rv) => {
+    if (!log) return rv;
+    const lo = Math.log(Math.max(min, 1e-6));
+    const v = Math.exp(lo + (rv / 1000) * (Math.log(max) - lo));
+    return Math.round(v / step) * step;
+  };
 
   function setRange(lo, hi) {
     min = lo;
     max = hi;
-    for (const e of [range, input]) Object.assign(e, { min, max });
+    if (!log) Object.assign(range, { min, max });
+    Object.assign(input, { min, max });
     set(current);
   }
   function paint() {
-    range.value = current;
+    range.value = log ? Math.round(toT(current) * 1000) : current;
     input.value = Number(current).toFixed(decimals);
-    range.style.setProperty('--p', ((current - min) / (max - min)) * 100 + '%');
+    range.style.setProperty('--p', toT(current) * 100 + '%');
   }
   function set(v) {
     current = Math.min(max, Math.max(min, Number(v)));
@@ -59,8 +71,8 @@ export function slider({ label, min, max, step = 1, value, unit = '', default: d
     onInput?.(current, live);
   }
 
-  range.addEventListener('input', () => emit(range.value, true));
-  range.addEventListener('change', () => emit(range.value, false));
+  range.addEventListener('input', () => emit(fromRange(Number(range.value)), true));
+  range.addEventListener('change', () => emit(fromRange(Number(range.value)), false));
   input.addEventListener('change', () => {
     const v = parseFloat(input.value.replace(',', '.'));
     if (Number.isFinite(v)) emit(v, false);

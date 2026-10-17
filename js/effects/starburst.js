@@ -45,9 +45,9 @@ void main() {
   vec2 uv = gl_FragCoord.xy / uRes;
   vec4 col = textureLod(uTex, uv, uLod);
   vec2 p = uv * uImg;
-  // Raios mais finos que um pixel da prévia ficam com 1 px e brilho proporcional (mesma "energia").
-  float th = max(uThick, uPx * 0.8);
-  float gain = uThick / th;
+  // De traço fino (linha de luz) a braço largo de estrela: acima de ~3 px o raio vira um braço
+  // sólido que afina até a ponta, com brilho uniforme e borda macia.
+  float wideness = smoothstep(3.0, 24.0, uThick);
   float cr = max(uCore, uPx);
   vec3 core = vec3(0.0);
   vec3 rays = vec3(0.0);
@@ -71,6 +71,7 @@ void main() {
     }
     if (r2 > uLen * uLen * 1.1) continue;
     float si = float(i) * 17.31;
+    vec3 star = vec3(0.0);   // braços de um ponto: combinados por máximo, para não estourar no centro
     for (int k = 0; k < 16; k++) {
       if (k >= uPoints) break;
       float fk = float(k);
@@ -85,9 +86,17 @@ void main() {
       if (t >= L) continue;
       float s = abs(d.x * dir.y - d.y * dir.x);
       float u = t / L;
-      float w = th * (1.0 - 0.55 * u) + 1e-4;
-      // Traço fino com um leve brilho em volta, como a difração de um filtro real.
-      float across = (exp(-(s * s) / (w * w)) + 0.22 * exp(-(s * s) / (w * w * 16.0))) * gain;
+      // Largura ao longo do braço: fina quase constante, ou larga afinando até a ponta (lados côncavos).
+      float w = uThick * mix(1.0 - 0.55 * u, pow(1.0 - u, 1.6), wideness) + 1e-4;
+      // Mais fino que um pixel da prévia: 1 px com brilho proporcional (mesma "energia").
+      float we = max(w, uPx * 0.8);
+      float gain = w / we;
+      // Perfil: linha suave (fino) ou braço sólido de borda macia (largo), com brilho em volta.
+      float soft = exp(-(s * s) / (we * we));
+      float aa = max(uPx, we * 0.18);
+      float solid = 1.0 - smoothstep(we - aa, we + aa, s);
+      float halo = 0.22 * exp(-(s * s) / (we * we * mix(16.0, 5.0, wideness)));
+      float across = (mix(soft, solid, wideness) + halo) * gain;
       // Traço largo e suave por baixo do nítido (Largura), entrando aos poucos a partir do centro.
       if (uWide > 0.0) {
         float wd = max(uWide, uPx) * (1.0 - 0.3 * u);
@@ -95,7 +104,7 @@ void main() {
         across += uWideInt * 1.3 * exp(-e * e) * smoothstep(0.0, 1.0, t / wd + 0.3);
       }
       // Forte perto do centro e uma cauda longa que se apaga aos poucos.
-      float along = (0.55 * exp(-5.0 * u) + 0.45 * (1.0 - u) * (1.0 - u)) * (1.0 - uVar * 0.6 * rb);
+      float along = mix(0.55 * exp(-5.0 * u) + 0.45 * (1.0 - u) * (1.0 - u), 1.0 - u * u, wideness) * (1.0 - uVar * 0.6 * rb);
       // Falhas: a opacidade varia suavemente ao longo do raio (várias escalas de irregularidade);
       // no máximo chega a apagar trechos, mas sempre com transição macia.
       float irr = 1.0;
@@ -110,8 +119,9 @@ void main() {
         vec3 spec = 0.5 + 0.5 * cos(6.2831853 * (t / max(L * 0.3, 1.0) + rb + vec3(0.0, 0.33, 0.67)));
         tint = mix(vec3(1.0), spec * 1.4, uDisp);
       }
-      rays += tint * (across * along * irr * 1.6);
+      star = max(star, tint * (across * along * irr * 1.6));
     }
+    rays += star;
   }
   vec3 add = clamp(uColor * (core + rays) * uInt, 0.0, 1.0);
   outColor = vec4(1.0 - (1.0 - clamp(col.rgb, 0.0, 1.0)) * (1.0 - add), col.a);
@@ -137,8 +147,8 @@ export const starburst = {
       tip: 'Gira todos os raios de todos os pontos juntos.' },
     { id: 'length', type: 'range', label: 'Tamanho dos raios', chip: 'Raios', min: 10, max: 4000, step: 1, default: 400, unit: 'px', log: true },
     { id: 'core', type: 'range', label: 'Tamanho do centro', chip: 'Centro', min: 0, max: 300, step: 1, default: 20, unit: 'px' },
-    { id: 'thickness', type: 'range', label: 'Espessura dos raios', chip: 'Espessura', min: 0.5, max: 60, step: 0.5, default: 2.5, unit: 'px', log: true,
-      tip: 'Espessura do traço nítido de cada raio.' },
+    { id: 'thickness', type: 'range', label: 'Espessura dos raios', chip: 'Espessura', min: 0.5, max: 400, step: 0.5, default: 2.5, unit: 'px', log: true,
+      tip: 'Fino: linha de luz. Largo: braço sólido de estrela que afina até a ponta.' },
     { id: 'wide', type: 'range', label: 'Largura do traço', chip: 'Largura', min: 0, max: 400, step: 1, default: 0, unit: 'px',
       tip: 'Engrossa os raios com um traço largo e suave por baixo do traço nítido (0 = desligado).' },
     { id: 'wideInt', type: 'range', label: 'Brilho do traço largo', chip: 'Brilho largo', min: 0, max: 100, step: 1, default: 60, unit: '%',
