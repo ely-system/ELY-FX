@@ -38,8 +38,8 @@ raios grandes são calculados em resolução reduzida e ampliados, mantendo a ve
 
 ### Preto e branco
 Como o ajuste Preto e Branco do Photoshop: **Luminosidade por cor** (vermelhos, amarelos, verdes, cianos, azuis e
-magentas — clareia ou escurece cada faixa, sem mexer nas áreas neutras), **Contraste** e **Saturação** geral
-(0% = P&B total; valores maiores devolvem parte da cor mantendo os tons do P&B).
+magentas — clareia ou escurece cada faixa, sem mexer nas áreas neutras; a trilha de cada slider vai do escuro à
+esquerda ao claro à direita, passando pela cor da faixa) e **Contraste**.
 
 ### Duotone
 A luminosidade vira um degradê entre a **Cor das sombras** e a **Cor das luzes** (seletor de cor com hex), com

@@ -2,8 +2,7 @@
 //
 // O cinza parte da luminância da foto e cada faixa de cor (vermelhos, amarelos, verdes, cianos,
 // azuis, magentas) pode ficar mais clara ou mais escura, proporcionalmente à saturação do pixel —
-// áreas neutras (cinzas) não mudam. Depois vêm o contraste e a saturação geral, que devolve parte
-// da cor original mantendo os tons do P&B.
+// áreas neutras (cinzas) não mudam. Depois vem o contraste.
 
 const FS = `#version 300 es
 precision highp float;
@@ -13,7 +12,6 @@ uniform float uLod;
 uniform vec3 uWa;        // vermelhos, amarelos, verdes   (-1..1)
 uniform vec3 uWb;        // cianos, azuis, magentas      (-1..1)
 uniform float uContrast; // -1..1
-uniform float uSat;      // 0..1
 out vec4 outColor;
 
 float weight(int i) { return i < 3 ? uWa[i] : uWb[i - 3]; }
@@ -42,14 +40,13 @@ void main() {
   // Contraste: curva em S suave para valores positivos, achatamento para negativos.
   if (uContrast >= 0.0) g = mix(g, g * g * (3.0 - 2.0 * g), uContrast);
   g = clamp(0.5 + (g - 0.5) * (1.0 + 0.6 * uContrast), 0.0, 1.0);
-
-  // Saturação geral: traz de volta a cor original com a luminância do P&B.
-  vec3 colored = clamp(c * (g / max(L, 1e-3)), 0.0, 1.0);
-  outColor = vec4(mix(vec3(g), colored, uSat), src.a);
+  outColor = vec4(vec3(g), src.a);
 }`;
 
 const LUM = 'Luminosidade por cor';
-const lum = (id, label) => ({ id, type: 'range', group: LUM, label, min: -100, max: 100, step: 1, default: 0,
+// Trilha do slider: escura à esquerda (escurece), a cor da faixa no meio e clara à direita (clareia).
+const lum = (id, label, color) => ({ id, type: 'range', group: LUM, label, min: -100, max: 100, step: 1, default: 0,
+  track: ['#101010', color, '#f2f2f2'],
   tip: `Deixa os tons ${label.toLowerCase()} da foto mais claros (+) ou mais escuros (−) no P&B.` });
 
 export const blackWhite = {
@@ -58,14 +55,12 @@ export const blackWhite = {
   group: 'Cor',
   params: [
     { id: 'contrast', type: 'range', label: 'Contraste', min: -100, max: 100, step: 1, default: 0 },
-    { id: 'saturation', type: 'range', label: 'Saturação', min: 0, max: 100, step: 1, default: 0, unit: '%',
-      tip: '0% = preto e branco total. Valores maiores devolvem parte da cor, mantendo os tons do P&B.' },
-    lum('reds', 'Vermelhos'),
-    lum('yellows', 'Amarelos'),
-    lum('greens', 'Verdes'),
-    lum('cyans', 'Cianos'),
-    lum('blues', 'Azuis'),
-    lum('magentas', 'Magentas'),
+    lum('reds', 'Vermelhos', '#c8473f'),
+    lum('yellows', 'Amarelos', '#c9b13c'),
+    lum('greens', 'Verdes', '#4f9d4a'),
+    lum('cyans', 'Cianos', '#3fa9b0'),
+    lum('blues', 'Azuis', '#4565c4'),
+    lum('magentas', 'Magentas', '#b24aa8'),
   ],
   openGroups: [LUM],
 
@@ -75,7 +70,7 @@ export const blackWhite = {
     r.pass(r.program(FS), out, {
       uTex: src.tex, uRes: [w, h], uLod: Math.max(0, Math.log2(Math.max(src.w / w, src.h / h))),
       uWa: [k(p.reds), k(p.yellows), k(p.greens)], uWb: [k(p.cyans), k(p.blues), k(p.magentas)],
-      uContrast: k(p.contrast), uSat: k(p.saturation),
+      uContrast: k(p.contrast),
     });
     return out.tex;
   },

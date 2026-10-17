@@ -13,9 +13,10 @@ function el(tag, cls, text) {
  * Slider com campo numérico. Duplo clique no nome restaura o valor padrão.
  * onInput(v, live): live = true enquanto o usuário arrasta.
  */
-export function slider({ label, min, max, step = 1, value, unit = '', default: def, tip, onInput }) {
+export function slider({ label, min, max, step = 1, value, unit = '', default: def, tip, track, onInput }) {
   const id = 'ctl' + ++uid;
-  const root = el('div', 'ctl ctl-range');
+  const root = el('div', 'ctl ctl-range' + (track ? ' tracked' : ''));
+  if (track) root.style.setProperty('--track', `linear-gradient(to right, ${track.join(', ')})`);
   const head = el('div', 'ctl-head');
   const lab = el('label', null, label);
   lab.htmlFor = id;
@@ -105,8 +106,9 @@ export function select({ label, options, value, tip, onInput }) {
  * dois toques rápidos voltam ao valor padrão; tocar no número permite digitar o valor.
  * `log: true` usa escala logarítmica (ex.: tamanho do pincel).
  */
-export function touchSlider({ label, min, max, step = 1, value, unit = '', default: def, log = false, onInput }) {
-  const root = el('div', 'tslider');
+export function touchSlider({ label, min, max, step = 1, value, unit = '', default: def, log = false, track, onInput }) {
+  const root = el('div', 'tslider' + (track ? ' tracked' : ''));
+  if (track) root.style.setProperty('--track', `linear-gradient(to right, ${track.join(', ')})`);
   root.tabIndex = 0;
   root.setAttribute('role', 'slider');
   root.setAttribute('aria-label', label);
@@ -115,11 +117,11 @@ export function touchSlider({ label, min, max, step = 1, value, unit = '', defau
   val.type = 'button';
   val.title = 'Tocar para digitar o valor';
   head.append(el('span', 'ts-label', label), val);
-  const track = el('div', 'ts-track');
+  const trackEl = el('div', 'ts-track');
   const fill = el('div', 'ts-fill');
   const thumb = el('div', 'ts-thumb');
-  track.append(fill, thumb);
-  root.append(head, track);
+  trackEl.append(fill, thumb);
+  root.append(head, trackEl);
 
   const decimals = (String(step).split('.')[1] || '').length;
   const lo = log ? Math.log(Math.max(min, 1e-6)) : min;
@@ -197,7 +199,7 @@ export function touchSlider({ label, min, max, step = 1, value, unit = '', defau
       g.active = true;
       g.x = e.clientX;
       g.t0 = toT(current);
-      g.w = Math.max(80, track.clientWidth);
+      g.w = Math.max(80, trackEl.clientWidth);
       try { root.setPointerCapture(e.pointerId); } catch { /* ignora */ }
       root.classList.add('active');
       return;

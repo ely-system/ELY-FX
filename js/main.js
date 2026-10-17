@@ -1447,7 +1447,7 @@ function muiAdjustItems() {
     const [min, max] = paramRange(def);
     items.push({
       key: def.id, label: def.group ? def.label : (def.chip || def.label), group: def.group,
-      type: def.type, options: def.options, min, max, step: def.step, unit: unitText(unitOf(def)),
+      type: def.type, options: def.options, min, max, step: def.step, unit: unitText(unitOf(def)), track: def.track,
       default: def.default, get: () => L.params[def.id], set: (v, live) => onParamInput(def, v, live),
     });
     if (def.id === 'direction') items.push(fxOpacity);
@@ -1608,7 +1608,7 @@ function muiBuild() {
     let node;
     if (it.type === 'range') {
       const ctl = touchSlider({ label: it.label, min: it.min, max: it.max, step: it.step, unit: it.unit || '',
-        value: it.get(), default: it.default, log: it.log, onInput: (v, live) => it.set(v, live) });
+        value: it.get(), default: it.default, log: it.log, track: it.track, onInput: (v, live) => it.set(v, live) });
       muiRows.push({ it, ctl });
       node = ctl.el;
     } else if (it.type === 'select') {

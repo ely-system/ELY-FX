@@ -219,6 +219,11 @@ input[type=range]::-webkit-slider-thumb {
 }
 input[type=range]::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: #f2f2f2; border: 0; }
 input[type=range]:focus-visible { outline: none; }
+/* Sliders com trilha em degradê (ex.: luminosidade por cor do P&B): escuro → cor → claro. */
+.ctl-range.tracked input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 6px; background: var(--track); }
+.ctl-range.tracked input[type=range]::-webkit-slider-thumb { margin-top: -3.5px; box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 1px 3px rgba(0,0,0,.6); }
+.ctl-range.tracked input[type=range]::-moz-range-track { height: 6px; border-radius: 6px; background: var(--track); }
+.ctl-range.tracked input[type=range]::-moz-range-progress { background: transparent; }
 input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(224,182,90,.45); }
 
 .hint .sign {
@@ -494,6 +499,8 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
     transform: translate(-50%, -50%); box-shadow: 0 1px 4px rgba(0,0,0,.6); transition: transform .1s;
   }
   .tslider.active .ts-thumb { transform: translate(-50%, -50%) scale(1.25); }
+  .tslider.tracked .ts-track::before { height: 6px; margin-top: -3px; border-radius: 6px; background: var(--track); }
+  .tslider.tracked .ts-fill { display: none; }
   .tslider.active .ts-value { color: var(--accent); }
 
   .mrow { padding: 8px 0 6px; }
