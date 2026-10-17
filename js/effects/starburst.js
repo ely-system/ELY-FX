@@ -26,6 +26,7 @@ uniform float uVar;
 uniform float uGaps;
 uniform float uSeed;
 uniform float uDisp;          // dispersão (arco-íris) ao longo dos raios
+uniform float uCoreDisp;      // brilho cromático do centro
 uniform vec3 uColor;
 out vec4 outColor;
 
@@ -44,7 +45,7 @@ void main() {
   float th = max(uThick, uPx * 0.8);
   float gain = uThick / th;
   float cr = max(uCore, uPx);
-  float core = 0.0;
+  vec3 core = vec3(0.0);
   vec3 rays = vec3(0.0);
   float n = float(uPoints);
 
@@ -52,7 +53,18 @@ void main() {
     if (i >= uCount) break;
     vec2 d = p - uStars[i];
     float r2 = dot(d, d);
-    if (uCore > 0.0) core += exp(-r2 / (cr * cr)) + 0.18 * cr * cr / (r2 + cr * cr);
+    if (uCore > 0.0) {
+      // Brilho cromático: cada cor com um raio um pouco diferente (vermelho por fora, azul por dentro)
+      // e um halo suave com as cores do espectro, como a aberração de uma lente.
+      vec3 crs = cr * (1.0 + uCoreDisp * vec3(0.4, 0.0, -0.3));
+      core += exp(-r2 / (crs * crs)) + 0.18 * crs * crs / (r2 + crs * crs);
+      if (uCoreDisp > 0.001) {
+        float rr = sqrt(r2);
+        float ring = exp(-pow((rr - 2.6 * cr) / (0.8 * cr), 2.0)) * 0.4 * uCoreDisp;
+        vec3 spec = 0.5 + 0.5 * cos(6.2831853 * (rr / (2.6 * cr) * 0.9 + vec3(0.0, 0.33, 0.67)));
+        core += ring * spec;
+      }
+    }
     if (r2 > uLen * uLen * 1.1) continue;
     float si = float(i) * 17.31;
     for (int k = 0; k < 16; k++) {
@@ -122,6 +134,8 @@ export const starburst = {
       tip: 'Variação suave de opacidade ao longo de cada raio, em pontos diferentes; no máximo apaga trechos.' },
     { id: 'disp', type: 'range', label: 'Dispersão (arco-íris)', chip: 'Dispersão', min: 0, max: 100, step: 1, default: 0, unit: '%',
       tip: 'Leve separação de cores ao longo dos raios, como em filtros estrela reais.' },
+    { id: 'coreDisp', type: 'range', label: 'Brilho cromático', chip: 'Cromático', min: 0, max: 100, step: 1, default: 0, unit: '%',
+      tip: 'Variação de cor no brilho do centro: bordas avermelhadas/azuladas e um halo nas cores do espectro.' },
     { id: 'sat', type: 'range', label: 'Saturação da cor', chip: 'Saturação', min: 0, max: 100, step: 1, default: 0, unit: '%' },
     { id: 'hue', type: 'range', label: 'Matiz', min: 0, max: 360, step: 1, default: 40, unit: '°' },
     { id: 'seed', type: 'range', label: 'Aleatoriedade', min: 1, max: 100, step: 1, default: 1,
@@ -146,7 +160,7 @@ export const starburst = {
       uPx: img.w / w,
       'uStars[0]': arr, uCount: stars.length, uPoints: Math.round(p.points),
       uRot: (p.rotation * Math.PI) / 180, uLen: p.length, uCore: p.core, uThick: p.thickness,
-      uInt: p.intensity / 100, uVar: p.variation / 100, uGaps: p.gaps / 100, uSeed: p.seed, uDisp: (p.disp || 0) / 100,
+      uInt: p.intensity / 100, uVar: p.variation / 100, uGaps: p.gaps / 100, uSeed: p.seed, uDisp: (p.disp || 0) / 100, uCoreDisp: (p.coreDisp || 0) / 100,
       uColor: hueToRgb(p.hue, p.sat / 100),
     });
     return out.tex;

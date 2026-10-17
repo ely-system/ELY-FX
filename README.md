@@ -40,7 +40,7 @@ Pontos de luz no estilo filtro estrela (cross screen). **Clique ou toque na foto
 mover; arraste para fora da foto (ou botão direito no computador) para remover. Todos os pontos compartilham
 **Pontas**, **Rotação** (gira todos juntos), **Tamanho dos raios**, **Tamanho do centro**, **Espessura** e
 **Intensidade**. **Variação** deixa cada raio com comprimento, brilho e ângulo próprios, e **Falhas** varia a opacidade de forma suave ao longo
-de cada raio (até apagar trechos); **Dispersão** dá um leve arco-íris; **Aleatoriedade** sorteia outro padrão. A luz entra em modo Tela (screen).
+de cada raio (até apagar trechos); **Dispersão** dá um leve arco-íris aos raios e **Brilho cromático** colore o brilho do centro (bordas e halo no espectro); **Aleatoriedade** sorteia outro padrão. A luz entra em modo Tela (screen).
 
 Controles dos desfoques radial e de zoom:
 
