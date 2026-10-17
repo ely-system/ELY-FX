@@ -670,6 +670,7 @@ const selectedOrigin = () => {
 
 const ovCenter = $('#ovCenter');
 const ovRings = $('#ovRings');
+const ovLines = $('#ovLines');
 
 const ovPoints = $('#ovPoints');
 
@@ -694,7 +695,7 @@ function updateOverlay() {
   overlay.style.display = state.loaded && ((L && L.effect.overlay) || P) ? '' : 'none';
   ovCenter.style.display = L ? '' : 'none';
   drawPointMarkers(P);
-  if (!state.loaded || !L || !L.effect.overlay) { ovRings.replaceChildren(); return; }
+  if (!state.loaded || !L || !L.effect.overlay) { ovRings.replaceChildren(); ovLines.replaceChildren(); return; }
   const o = L.effect.overlay(L.params, renderer.src.w, renderer.src.h);
   const [sx, sy] = view.toScreen(o.center[0], o.center[1]);
   ovCenter.setAttribute('transform', `translate(${sx.toFixed(1)} ${sy.toFixed(1)})`);
@@ -710,6 +711,20 @@ function updateOverlay() {
     }
     dark.setAttribute('class', 'ring-dark');
     light.setAttribute('class', 'ring-light' + (i > 0 ? ' solid' : ''));
+  });
+  // Linhas opcionais (ex.: limites da faixa nítida do tilt-shift), em px da imagem.
+  const lines = o.lines || [];
+  while (ovLines.childNodes.length < lines.length * 2) ovLines.append(document.createElementNS('http://www.w3.org/2000/svg', 'line'));
+  while (ovLines.childNodes.length > lines.length * 2) ovLines.lastChild.remove();
+  lines.forEach(([x1, y1, x2, y2, solid], i) => {
+    const [a, b] = view.toScreen(x1, y1);
+    const [c, d] = view.toScreen(x2, y2);
+    const dark = ovLines.childNodes[i * 2], light = ovLines.childNodes[i * 2 + 1];
+    for (const l of [dark, light]) {
+      l.setAttribute('x1', a); l.setAttribute('y1', b); l.setAttribute('x2', c); l.setAttribute('y2', d);
+    }
+    dark.setAttribute('class', 'ring-dark');
+    light.setAttribute('class', 'ring-light' + (solid ? ' solid' : ''));
   });
 }
 
@@ -886,7 +901,8 @@ function startAction(p) {
     // O último ponto tocado (ou criado) fica selecionado.
     if (hit >= 0) { P.selPoint = hit; requestRender(); drag = { type: 'point', layer: P, index: hit, before }; return; }
     if (!insideImage(p)) { drag = { type: 'pan', last: p }; setPanning(true); return; }
-    if (before.length >= MAX_STARS) { toast(`Máximo de ${MAX_STARS} pontos por efeito.`); return; }
+    const maxPts = P.effect.maxPoints || MAX_STARS;
+    if (before.length >= maxPts) { toast(`Máximo de ${maxPts} pontos por efeito.`); return; }
     const [ix, iy] = view.toImage(p[0], p[1]);
     P.params[key] = [...structuredClone(before), [Math.round(ix), Math.round(iy)]];
     drag = { type: 'point', layer: P, index: P.params[key].length - 1, before };

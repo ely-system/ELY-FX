@@ -113,7 +113,7 @@ svg { display: block; }
 #overlay g.selected .pt-dot { fill: var(--accent); }
 #overlay g.active .pt-light { stroke: var(--accent); stroke-width: 2; }
 #overlay.dim #ovPoints { opacity: .35; }
-#overlay.dim #ovRings { opacity: 0; }
+#overlay.dim #ovRings, #overlay.dim #ovLines { opacity: 0; }
 
 .stage.tool-center { cursor: crosshair; }
 .stage.tool-pan, .stage.space, .stage.tool-center.no-origin { cursor: grab; }

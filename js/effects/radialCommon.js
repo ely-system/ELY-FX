@@ -54,6 +54,30 @@ const QUALITY = {
 
 export const ORIGIN_GROUP = 'Posição do ponto de origem';
 
+/** Parâmetros do ponto de origem (px a partir do centro da foto), para efeitos com alvo arrastável. */
+export function originDefs() {
+  return [
+    { id: 'ox', type: 'range', group: ORIGIN_GROUP, label: 'Horizontal', chip: 'Origem ↔', min: -1000, max: 1000, step: 1, default: 0, unit: 'px',
+      range: (w, h) => [-Math.floor(w / 2), Math.floor(w / 2)],
+      tip: 'Distância a partir do centro da foto. Positivo = para a direita, negativo = para a esquerda.' },
+    { id: 'oy', type: 'range', group: ORIGIN_GROUP, label: 'Vertical', chip: 'Origem ↕', min: -1000, max: 1000, step: 1, default: 0, unit: 'px',
+      range: (w, h) => [-Math.floor(h / 2), Math.floor(h / 2)],
+      tip: 'Distância a partir do centro da foto. Positivo = para cima, negativo = para baixo.' },
+  ];
+}
+
+/** Ponto de origem (px da imagem, origem no topo esquerdo) a partir dos parâmetros. */
+export function originAt(p, w, h) {
+  return [w / 2 + p.ox, h / 2 - p.oy];
+}
+
+/** Converte um ponto da imagem nos parâmetros de origem. */
+export function originParamsAt(ix, iy, w, h) {
+  const ox = Math.round(Math.max(-w / 2, Math.min(w / 2, ix - w / 2)));
+  const oy = Math.round(Math.max(-h / 2, Math.min(h / 2, h / 2 - iy)));
+  return { ox, oy };
+}
+
 /**
  * Cria um efeito de desfoque com ponto de origem.
  * directions: [{ value, label, range: [t0, t1] }]
@@ -77,25 +101,11 @@ export function makeOriginBlur({ id, name, description, mode, maxAmount, directi
         tip: 'Quão gradual é a passagem da área nítida para o desfoque total.' },
       { id: 'quality', type: 'select', label: 'Qualidade', default: 'good',
         options: [{ value: 'draft', label: 'Rascunho (rápida)', short: 'Rascunho' }, { value: 'good', label: 'Boa' }, { value: 'best', label: 'Ótima' }] },
-      { id: 'ox', type: 'range', group: ORIGIN_GROUP, label: 'Horizontal', chip: 'Origem ↔', min: -1000, max: 1000, step: 1, default: 0, unit: 'px',
-        range: (w, h) => [-Math.floor(w / 2), Math.floor(w / 2)],
-        tip: 'Distância a partir do centro da foto. Positivo = para a direita, negativo = para a esquerda.' },
-      { id: 'oy', type: 'range', group: ORIGIN_GROUP, label: 'Vertical', chip: 'Origem ↕', min: -1000, max: 1000, step: 1, default: 0, unit: 'px',
-        range: (w, h) => [-Math.floor(h / 2), Math.floor(h / 2)],
-        tip: 'Distância a partir do centro da foto. Positivo = para cima, negativo = para baixo.' },
+      ...originDefs(),
     ],
 
-    /** Ponto de origem (px da imagem, origem no topo esquerdo) a partir dos parâmetros. */
-    origin(p, w, h) {
-      return [w / 2 + p.ox, h / 2 - p.oy];
-    },
-
-    /** Converte um ponto da imagem nos parâmetros de origem. */
-    originParams(ix, iy, w, h) {
-      const ox = Math.round(Math.max(-w / 2, Math.min(w / 2, ix - w / 2)));
-      const oy = Math.round(Math.max(-h / 2, Math.min(h / 2, h / 2 - iy)));
-      return { ox, oy };
-    },
+    origin: originAt,
+    originParams: originParamsAt,
 
     /** Ponto de origem e anéis da área nítida (px da imagem) para o overlay. */
     overlay(p, w, h) {

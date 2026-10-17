@@ -99,6 +99,35 @@ A foto vista através de um vidro. Seis **estilos**, cada um com três **variaç
 A **Semente** escolhe o desenho; **Sortear padrão** sorteia outro no mesmo estilo. Ajustes de **Tamanho do padrão**,
 **Distorção**, **Fosco** (desfoque), **Bordas** (chumbo, rejunte, rachaduras e brilho das arestas) e **Rotação**.
 
+### Glitch
+Falhas digitais e de vídeo: faixas deslocadas (**Deslocamento**, **Quantidade** e **Altura das faixas**), **Separação RGB**,
+**Blocos corrompidos**, **Linhas de varredura** e **Chiado**. **Sortear padrão** escolhe outro desenho de falhas.
+
+### Tilt-shift (grupo Desfoques)
+Faixa (ou círculo) nítida e desfoque que cresce aos poucos fora dela — efeito miniatura. Arraste o alvo para posicionar;
+ajustes de **Desfoque**, **Área nítida**, **Transição**, **Ângulo** e **Saturação**. As linhas mostram os limites na foto.
+
+## Luz e lente
+Grupo com **Lens flare**, **Raios de luz**, **Glow**, **Dreamy glow**, **Halation** e **Aberração cromática**.
+
+### Lens flare
+Toque na foto para criar a fonte de luz (até 8). Os reflexos seguem a linha da fonte até o lado oposto do centro, como
+numa lente real. **Formato** dos reflexos (círculo, hexágono, pentágono, octógono ou anel), **Quantidade**, **Tamanho**,
+**Espalhamento**, **Suavidade**; **Paleta** (Natural, Arco-íris, Quente, Frio ou Cor única); luz da fonte com **Brilho
+central**, **Anel**, **Raio anamórfico** e **Estrela**. **Semente** / **Sortear padrão** mudam posição, tamanho e cor de cada reflexo.
+
+### Glow
+As luzes ficam mais fortes e levemente desfocadas (bloom): **Intensidade**, **Raio**, **Limite das luzes**,
+**Reforço das luzes** e **Cor do brilho** (branco ou com a cor da luz).
+
+### Halation
+Halo avermelhado em volta das luzes fortes, como no filme Cinestill: **Intensidade**, **Raio**, **Limite das luzes**,
+**Cor do halo** e **Limpar sobre a luz**.
+
+### Aberração cromática
+Franjas de cor nas bordas. **Radial** (como lente; arraste o alvo e use a **Área limpa**) ou **Deslocamento** (numa
+direção, com **Ângulo**). Cores Vermelho/Ciano, Roxo/Verde, Azul/Amarelo ou Espectro.
+
 ## Máscara
 
 A máscara define a **área marcada**, onde o efeito não aparece.

@@ -40,7 +40,7 @@ const onlyLights = (p) => p.area === 'lights';
 export const dreamyGlow = {
   id: 'dreamy-glow',
   name: 'Dreamy glow',
-  group: 'Estilização',
+  group: 'Luz e lente',
   description:
     'Dá um brilho difuso e sonhador à foto: uma cópia desfocada é mesclada por cima, como filtros de difusão usados em retratos e casamentos.\n\nSonho deixa tudo mais enevoado e claro; Leve só clareia onde o brilho é mais forte. Em Só as luzes, apenas as áreas mais claras brilham (efeito bloom).',
   params: [

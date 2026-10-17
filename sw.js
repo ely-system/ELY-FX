@@ -34,6 +34,13 @@ const SHELL = [
   './js/effects/dreamyGlow.js',
   './js/effects/colorize.js',
   './js/effects/glass.js',
+  './js/effects/bloomCommon.js',
+  './js/effects/lensFlare.js',
+  './js/effects/halation.js',
+  './js/effects/glow.js',
+  './js/effects/chromaticAberration.js',
+  './js/effects/tiltShift.js',
+  './js/effects/glitch.js',
 ];
 
 self.addEventListener('install', (e) => {

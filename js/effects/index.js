@@ -20,14 +20,21 @@ import { duotone } from './duotone.js';
 import { dreamyGlow } from './dreamyGlow.js';
 import { colorize } from './colorize.js';
 import { glass } from './glass.js';
+import { lensFlare } from './lensFlare.js';
+import { halation } from './halation.js';
+import { glow } from './glow.js';
+import { chromaticAberration } from './chromaticAberration.js';
+import { tiltShift } from './tiltShift.js';
+import { glitch } from './glitch.js';
 
 export const effects = [
-  radialBlur, zoomBlur, directionalBlur, gaussianBlur,
+  radialBlur, zoomBlur, directionalBlur, gaussianBlur, tiltShift,
   blackWhite, duotone, colorize,
-  noise, pixelate, starburst, dreamyGlow, glass,
+  lensFlare, starburst, glow, dreamyGlow, halation, chromaticAberration,
+  noise, pixelate, glass, glitch,
 ];
 
-export const GROUPS = ['Desfoques', 'Cor', 'Estilização'];
+export const GROUPS = ['Desfoques', 'Cor', 'Luz e lente', 'Estilização'];
 
 export function effectsByGroup() {
   return GROUPS.map((name) => ({ name, items: effects.filter((e) => e.group === name) }));
