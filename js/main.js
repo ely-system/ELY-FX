@@ -456,7 +456,8 @@ function effectActionButtons(L, cls) {
     b.type = 'button';
     b.className = cls;
     b.textContent = a.label;
-    b.addEventListener('click', () => { a.run(L, setPoints); requestRender(); });
+    // run(camada, trocar pontos, trocar um parâmetro)
+    b.addEventListener('click', () => { a.run(L, setPoints, (layer, id, v) => setParam(id, v, false, true, layer)); requestRender(); });
     return b;
   });
 }

@@ -32,6 +32,8 @@ const SHELL = [
   './js/effects/blackWhite.js',
   './js/effects/duotone.js',
   './js/effects/dreamyGlow.js',
+  './js/effects/colorize.js',
+  './js/effects/glass.js',
 ];
 
 self.addEventListener('install', (e) => {

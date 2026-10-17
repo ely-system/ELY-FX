@@ -18,11 +18,13 @@ import { starburst } from './starburst.js';
 import { blackWhite } from './blackWhite.js';
 import { duotone } from './duotone.js';
 import { dreamyGlow } from './dreamyGlow.js';
+import { colorize } from './colorize.js';
+import { glass } from './glass.js';
 
 export const effects = [
   radialBlur, zoomBlur, directionalBlur, gaussianBlur,
-  blackWhite, duotone,
-  noise, pixelate, starburst, dreamyGlow,
+  blackWhite, duotone, colorize,
+  noise, pixelate, starburst, dreamyGlow, glass,
 ];
 
 export const GROUPS = ['Desfoques', 'Cor', 'Estilização'];

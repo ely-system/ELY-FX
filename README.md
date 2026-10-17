@@ -45,6 +45,10 @@ esquerda ao claro à direita, passando pela cor da faixa) e **Contraste**.
 A luminosidade vira um degradê entre a **Cor das sombras** e a **Cor das luzes** (seletor de cor com hex), com
 **Contraste** e **Equilíbrio** (puxa os meios-tons para uma das cores).
 
+### Colorir
+A foto inteira fica de uma cor só. **Tonalizar** mantém as luzes e sombras com o matiz da cor escolhida
+(com **Saturação** e **Luminosidade**); **Cor sólida** pinta tudo com a cor.
+
 ### Dreamy glow
 Aspecto de sonho: uma cópia com desfoque gaussiano (**Expansão**, 0–100% = até 100 px) com **Intensidade** de
 10% a 80% e **Tipo** **Sonho** (mesclagem Tela) ou **Leve** (Clarear). Em **Área → Só as luzes**, apenas o que passa do **Limite das luzes** gera o brilho
@@ -82,6 +86,18 @@ Controles dos desfoques radial e de zoom:
 - **Qualidade:** rascunho, boa ou ótima.
 - **Opacidade do efeito:** intensidade geral do efeito sobre a foto original.
 - **Posição do ponto de origem** (grupo recolhível): em pixels a partir do centro da foto — horizontal positivo = direita, vertical positivo = cima. Também pode ser arrastado sobre a foto (ferramenta V).
+
+### Vidro
+A foto vista através de um vidro. Seis **estilos**, cada um com três **variações**:
+- **Fosco**: Fino (jateado), Gelo (cristais) e Nevoado (manchas foscas).
+- **Vitral**: Celular, Losangos e Hexágonos, com **Cores do vitral** e chumbo entre os vidros.
+- **Fractal** (vidro canelado): caneluras Retas, Onduladas ou Concêntricas.
+- **Borrado**: Manchas, Escorrido e Redemoinho.
+- **Quebrado**: Estilhaços (a partir de um ponto de impacto), Rachado e Teia.
+- **Blocos**: Quadrados, Tijolos e Pastilhas.
+
+A **Semente** escolhe o desenho; **Sortear padrão** sorteia outro no mesmo estilo. Ajustes de **Tamanho do padrão**,
+**Distorção**, **Fosco** (desfoque), **Bordas** (chumbo, rejunte, rachaduras e brilho das arestas) e **Rotação**.
 
 ## Máscara
 
