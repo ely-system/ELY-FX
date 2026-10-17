@@ -36,6 +36,8 @@ export const pixelate = {
   id: 'pixelate',
   name: 'Pixelização',
   group: 'Estilização',
+  description:
+    'Divide a foto em blocos quadrados com a cor média de cada um, no estilo pixel art.\n\nDefina o tamanho do pixel e, se quiser, reduza a quantidade de cores para um visual de videogame antigo. Com a máscara, serve também para esconder rostos ou placas.',
   params: [
     { id: 'size', type: 'range', label: 'Tamanho do pixel', chip: 'Pixel', min: 2, max: 200, step: 1, default: 16, unit: 'px',
       tip: 'Lado de cada bloco, em pixels da foto.' },

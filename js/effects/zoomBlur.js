@@ -5,6 +5,8 @@ import { makeOriginBlur } from './radialCommon.js';
 export const zoomBlur = makeOriginBlur({
   id: 'zoom-blur',
   name: 'Desfoque de zoom',
+  description:
+    'Simula um zoom feito durante a exposição: a imagem ganha rastros em linha reta saindo do ponto de origem, como o Desfoque radial (Zoom) do Photoshop.\n\nArraste o alvo para o assunto principal e use a Área nítida para mantê-lo limpo enquanto o resto “explode” em direção às bordas.',
   mode: 1,
   maxAmount: 1.0, // intensidade 100 = escala de e^±0,5 (≈ 0,61× a 1,65×)
   amountDefault: 15,

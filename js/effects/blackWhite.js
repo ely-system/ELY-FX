@@ -53,6 +53,8 @@ export const blackWhite = {
   id: 'black-white',
   name: 'Preto e branco',
   group: 'Cor',
+  description:
+    'Converte a foto para preto e branco controlando o quanto cada cor original fica clara ou escura, como o ajuste Preto e branco do Photoshop.\n\nExemplo: escurecer os azuis deixa o céu mais dramático; clarear os vermelhos e amarelos clareia a pele. Áreas sem cor (cinzas) não mudam.',
   params: [
     { id: 'contrast', type: 'range', label: 'Contraste', min: -100, max: 100, step: 1, default: 0 },
     lum('reds', 'Vermelhos', '#c8473f'),

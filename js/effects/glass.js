@@ -291,6 +291,8 @@ export const glass = {
   id: 'glass',
   name: 'Vidro',
   group: 'Estilização',
+  description:
+    'Mostra a foto como se fosse vista através de um vidro.\n\nSão seis estilos — Fosco, Vitral, Fractal (vidro canelado), Borrado, Quebrado e Blocos — cada um com três variações. A Semente escolhe o desenho do padrão: toque em Sortear padrão para ver outros desenhos no mesmo estilo.\n\nAjuste o Tamanho do padrão, a Distorção (quanto o vidro desvia a imagem), o Fosco (desfoque) e as Bordas (chumbo, rejunte, rachaduras e brilho das arestas).',
   params: [
     { id: 'style', type: 'select', label: 'Estilo', default: 'frost',
       options: [

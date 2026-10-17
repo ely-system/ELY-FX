@@ -392,6 +392,7 @@ function buildSettings() {
   $('#settingsEmpty').hidden = !!L;
   $('#btnResetParams').hidden = !L;
   $('#settingsTitle').textContent = L ? L.effect.name : 'Ajustes do efeito';
+  $('#btnFxInfo').hidden = !L?.effect.description;
   $('#maskCard').classList.toggle('disabled', !L);
   $('#settingsHint').hidden = !L?.effect.hint;
   $('#settingsHint').textContent = L?.effect.hint || '';
@@ -448,6 +449,19 @@ function buildSettings() {
 }
 
 $('#btnResetParams').addEventListener('click', resetEffect);
+
+/** Popup com a descrição do efeito (botão "?" ao lado do nome). */
+function showFxInfo(effect) {
+  if (!effect?.description) return;
+  $('#fxInfoTitle').textContent = effect.name;
+  $('#fxInfoText').replaceChildren(...effect.description.split('\n\n').map((t) => {
+    const p = document.createElement('p');
+    p.textContent = t;
+    return p;
+  }));
+  $('#fxInfoDialog').showModal();
+}
+$('#btnFxInfo').addEventListener('click', () => showFxInfo(state.selected?.effect));
 
 /** Botões de ações extras do efeito (ex.: limpar pontos de luz). */
 function effectActionButtons(L, cls) {
@@ -1598,8 +1612,18 @@ function muiBuild() {
   if (muiTab === 'adjust') {
     const title = document.createElement('div');
     title.className = 'mui-head';
-    title.innerHTML = '<span></span>';
-    title.firstChild.textContent = state.selected.effect.name;
+    title.innerHTML = '<span class="title-row"><span></span></span>';
+    title.firstChild.firstChild.textContent = state.selected.effect.name;
+    if (state.selected.effect.description) {
+      const info = document.createElement('button');
+      info.type = 'button';
+      info.className = 'info-btn';
+      info.textContent = '?';
+      info.setAttribute('aria-label', 'Sobre este efeito');
+      const fx = state.selected.effect;
+      info.addEventListener('click', () => showFxInfo(fx));
+      title.firstChild.append(info);
+    }
     const reset = document.createElement('button');
     reset.type = 'button';
     reset.className = 'link-btn';

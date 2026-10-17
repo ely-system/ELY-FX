@@ -34,6 +34,8 @@ export const gaussianBlur = {
   id: 'gaussian-blur',
   name: 'Desfoque gaussiano',
   group: 'Desfoques',
+  description:
+    'Desfoque suave e uniforme em toda a foto, sem direção.\n\nÚtil para simular pouca profundidade de campo junto com a máscara (desfocando só o fundo), suavizar texturas ou criar fundos para textos.',
   params: [
     { id: 'radius', type: 'range', label: 'Raio', min: 0, max: 250, step: 0.5, default: 10, unit: 'px',
       tip: 'Intensidade do desfoque, em pixels da foto (como o Raio do Photoshop).' },

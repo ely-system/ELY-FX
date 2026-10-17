@@ -146,6 +146,8 @@ export const starburst = {
   id: 'starburst',
   name: 'Raios de luz (estrela)',
   group: 'Estilização',
+  description:
+    'Cria pontos de luz com raios em forma de estrela, como os filtros estrela (cross screen) usados em fotos de luzes da cidade e reflexos.\n\nToque ou clique na foto para criar cada ponto de luz; todos usam os mesmos ajustes. Escolha o número de pontas, o comprimento e a espessura dos raios, o tamanho do centro e a cor. Variação e Falhas deixam cada raio diferente, de forma mais natural.',
   opacityGroup: G,  // a opacidade do efeito abre o grupo Gerais
   openGroups: [G, RAYS, CORE, VAR],
   points: 'stars', // parâmetro com os pontos de luz, editados direto na foto

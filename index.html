@@ -135,7 +135,10 @@
 
       <section class="card" id="settingsCard">
         <div class="card-head">
-          <h2 id="settingsTitle">Ajustes do efeito</h2>
+          <div class="title-row">
+            <h2 id="settingsTitle">Ajustes do efeito</h2>
+            <button id="btnFxInfo" class="info-btn" type="button" title="Sobre este efeito" aria-label="Sobre este efeito" hidden>?</button>
+          </div>
           <button id="btnResetParams" class="link-btn" title="Restaurar valores padrão">Redefinir</button>
         </div>
         <p class="hint" id="settingsEmpty">Adicione um efeito para ajustar.</p>
@@ -265,6 +268,14 @@
       <button class="btn ghost small" id="presetExportAll">Exportar todos</button>
     </div>
     <input type="file" id="presetFile" accept=".json,application/json" hidden>
+  </dialog>
+
+  <dialog id="fxInfoDialog" class="dialog info-dialog">
+    <form method="dialog">
+      <h3 id="fxInfoTitle"></h3>
+      <div id="fxInfoText" class="info-text"></div>
+      <div class="dialog-actions"><button class="btn primary" value="ok">Entendi</button></div>
+    </form>
   </dialog>
 
   <dialog id="installDialog" class="dialog">

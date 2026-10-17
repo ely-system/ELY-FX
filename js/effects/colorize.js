@@ -57,6 +57,8 @@ export const colorize = {
   id: 'colorize',
   name: 'Colorir',
   group: 'Cor',
+  description:
+    'Deixa a foto inteira de uma cor só.\n\nTonalizar mantém as luzes e sombras da foto, mas tudo no tom da cor escolhida (como um sépia ou cianotipia). Cor sólida pinta tudo com a cor; com a opacidade e a máscara, serve para cobrir áreas ou criar fundos chapados.',
   params: [
     { id: 'color', type: 'color', label: 'Cor', default: '#C8874A' },
     { id: 'mode', type: 'select', label: 'Tipo', default: 'tone',

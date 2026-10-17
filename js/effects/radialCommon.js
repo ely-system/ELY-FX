@@ -58,12 +58,13 @@ export const ORIGIN_GROUP = 'Posição do ponto de origem';
  * Cria um efeito de desfoque com ponto de origem.
  * directions: [{ value, label, range: [t0, t1] }]
  */
-export function makeOriginBlur({ id, name, mode, maxAmount, directions, amountDefault }) {
+export function makeOriginBlur({ id, name, description, mode, maxAmount, directions, amountDefault }) {
   const dirRange = Object.fromEntries(directions.map((d) => [d.value, d.range]));
 
   return {
     id,
     name,
+    description,
     group: 'Desfoques',
     params: [
       { id: 'direction', type: 'select', label: 'Direção', default: directions[0].value,

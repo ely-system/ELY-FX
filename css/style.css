@@ -407,6 +407,15 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
+/* Botão "?" ao lado do nome do efeito e popup com a descrição */
+.title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.info-btn {
+  flex: none; width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1px solid #5a5a5a;
+  background: transparent; color: #bdbdbd; font-family: inherit; font-size: 11px; font-weight: 600; line-height: 1; cursor: pointer; display: grid; place-items: center;
+}
+.info-btn:hover { border-color: var(--accent); color: var(--accent); }
+.info-text p { margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: #d6d6d6; }
+
 .fatal { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; background: var(--bg); z-index: 10; font-size: 15px; }
 
 /* ---------- Elementos só de desktop / só de celular ---------- */
@@ -541,6 +550,8 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   /* abas Efeitos (camadas) e Ajustes */
   .mui-head { display: flex; align-items: center; justify-content: space-between; min-height: 32px; font-size: 14px; font-weight: 600; color: #f0f0f0; }
   .mui-head .link-btn { font-size: 13px; color: #cfcfcf; }
+  .mui-head .info-btn { width: 22px; height: 22px; font-size: 12px; }
+  .info-dialog .info-text p { font-size: 15px; }
   .mui-add-row { display: flex; gap: 8px; margin: 2px 0 10px; }
   .mui-add { flex: 1; height: 40px; }
   .mui-presets { height: 40px; padding: 0 14px; background: rgba(0,0,0,.35); border-color: rgba(255,255,255,.14); }

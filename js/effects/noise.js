@@ -75,6 +75,8 @@ export const noise = {
   id: 'noise',
   name: 'Ruído / Granulado',
   group: 'Estilização',
+  description:
+    'Adiciona ruído ou granulado, como o grão de um filme.\n\nRGB espalha pontos coloridos, Monocromático usa só variações de claro e escuro (o mais parecido com filme) e Tonalizado usa a cor que você escolher. O Tamanho do grão deixa o granulado mais grosso e suave.',
   params: [
     { id: 'type', type: 'select', label: 'Tipo', default: 'mono',
       options: [{ value: 'rgb', label: 'RGB' }, { value: 'mono', label: 'Monocromático', short: 'Mono' }, { value: 'tint', label: 'Tonalizado' }] },

@@ -28,6 +28,8 @@ export const duotone = {
   id: 'duotone',
   name: 'Duotone',
   group: 'Cor',
+  description:
+    'Transforma a foto em um degradê entre duas cores: as sombras ganham uma cor e as luzes outra.\n\nUse o Equilíbrio para puxar os meios-tons para um dos lados e o Contraste para separar mais as duas cores. Muito usado em pôsteres e capas.',
   params: [
     { id: 'shadow', type: 'color', label: 'Cor das sombras', default: '#1D2B6B' },
     { id: 'light', type: 'color', label: 'Cor das luzes', default: '#FFB46A' },

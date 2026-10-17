@@ -36,6 +36,8 @@ export const directionalBlur = {
   id: 'directional-blur',
   name: 'Desfoque direcional',
   group: 'Desfoques',
+  description:
+    'Desfoque em linha reta numa direção, igual ao Desfoque de movimento do Photoshop. Simula a câmera ou o objeto se mexendo durante o clique.\n\nEscolha o ângulo do movimento e a distância. Combine com a máscara para deixar o assunto nítido e só o fundo em movimento (efeito panning).',
   params: [
     { id: 'angle', type: 'range', label: 'Ângulo', min: -90, max: 90, step: 1, default: 0, unit: '°',
       tip: 'Direção do movimento: 0° horizontal, 90° vertical (como no Desfoque de Movimento do Photoshop).' },

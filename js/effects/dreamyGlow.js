@@ -41,6 +41,8 @@ export const dreamyGlow = {
   id: 'dreamy-glow',
   name: 'Dreamy glow',
   group: 'Estilização',
+  description:
+    'Dá um brilho difuso e sonhador à foto: uma cópia desfocada é mesclada por cima, como filtros de difusão usados em retratos e casamentos.\n\nSonho deixa tudo mais enevoado e claro; Leve só clareia onde o brilho é mais forte. Em Só as luzes, apenas as áreas mais claras brilham (efeito bloom).',
   params: [
     { id: 'expansion', type: 'range', label: 'Expansão', min: 0, max: 100, step: 1, default: 40, unit: '%',
       tip: 'Quanto o brilho se espalha (100% = desfoque de 100 px).' },
