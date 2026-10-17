@@ -3,7 +3,7 @@ import { MaskStore, History, ADD, SUBTRACT } from './mask.js';
 import { Viewport } from './viewport.js';
 import { effectsByGroup, defaultParams, visibleParams } from './effects/index.js';
 import { MAX_STARS } from './effects/starburst.js';
-import { slider, select, touchSlider } from './ui.js';
+import { slider, select, touchSlider, colorField } from './ui.js';
 import { APP_VERSION } from './version.js';
 
 const $ = (s) => document.querySelector(s);
@@ -411,6 +411,7 @@ function buildSettings() {
     const onInput = (v, live) => onParamInput(def, v, live);
     let c;
     if (def.type === 'select') c = select({ ...def, value: L.params[def.id], onInput });
+    else if (def.type === 'color') c = colorField({ label: def.label, value: L.params[def.id], onInput });
     else {
       const [min, max] = paramRange(def);
       c = slider({ ...def, min, max, value: L.params[def.id], onInput });
@@ -1603,6 +1604,10 @@ function muiBuild() {
       const { row, seg } = muiSegRow(it);
       muiRows.push({ it, seg });
       node = row;
+    } else if (it.type === 'color') {
+      const cf = colorField({ label: it.label, value: it.get(), onInput: (v, live) => it.set(v, live), className: 'mrow mrow-color' });
+      muiRows.push({ it, color: cf });
+      node = cf.el;
     } else {
       if (!actions) {
         actions = document.createElement('div');
@@ -1646,6 +1651,7 @@ function muiRefresh() {
   if (!muiReady) return;
   for (const r of muiRows) {
     if (r.ctl) r.ctl.set(r.it.get());
+    if (r.color) r.color.set(r.it.get());
     if (r.seg) {
       for (const b of r.seg.children) b.classList.toggle('active', b.dataset.value === String(r.it.get()));
       // Na rolagem horizontal, mantém a opção escolhida visível.

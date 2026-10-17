@@ -29,7 +29,7 @@ Equivalente ao *Desfoque Gaussiano* do Photoshop, com **Raio** em px da foto. Se
 raios grandes são calculados em resolução reduzida e ampliados, mantendo a velocidade.
 
 ### Ruído / Granulado
-Tipos **RGB**, **Monocromático** e **Tonalizado** (com matiz e saturação da cor), quantidade, tamanho do grão
+Tipos **RGB**, **Monocromático** e **Tonalizado** (com seletor de cor), quantidade, tamanho do grão
 (grãos maiores ficam suaves, como filme), distribuição uniforme/gaussiana e variação do padrão.
 
 ### Pixelização
@@ -41,6 +41,9 @@ mover; arraste para fora da foto (ou botão direito no computador) para remover.
 **Pontas**, **Rotação** (gira todos juntos), **Tamanho dos raios**, **Tamanho do centro**, **Espessura** e
 **Intensidade**. **Variação** deixa cada raio com comprimento, brilho e ângulo próprios, e **Falhas** varia a opacidade de forma suave ao longo
 de cada raio (até apagar trechos); **Dispersão** dá um leve arco-íris aos raios e **Brilho cromático** colore o brilho do centro (bordas e halo no espectro); **Aleatoriedade** sorteia outro padrão. A luz entra em modo Tela (screen).
+
+As cores (ruído tonalizado, cor da luz) abrem um **seletor de cor** no estilo Lightroom mobile: quadro de
+matiz × saturação, brilho, campo **hex** e cores prontas; aplica ao vivo e **Cancelar** volta à cor anterior.
 
 Controles dos desfoques radial e de zoom:
 

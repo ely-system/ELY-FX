@@ -5,6 +5,8 @@
 // brilho, leve desvio de ângulo e falhas ao longo do traço), controlados por "Variação" e "Falhas".
 // A luz é somada à foto em modo Tela (screen), como no Photoshop.
 
+import { hexToRgb } from '../ui.js';
+
 export const MAX_STARS = 32;
 
 const FS = `#version 300 es
@@ -107,10 +109,11 @@ void main() {
   outColor = vec4(1.0 - (1.0 - clamp(col.rgb, 0.0, 1.0)) * (1.0 - add), col.a);
 }`;
 
-function hueToRgb(h, s) {
-  const k = (n) => (n + h / 30) % 12;
-  const f = (n) => 1 - Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
-  return [f(0), f(8), f(4)].map((c) => 1 - s + s * c);
+/** Cor da luz com o canal mais forte em 1 (a força vem da Intensidade). */
+function lightFromHex(hex) {
+  const rgb = hexToRgb(hex) || [1, 1, 1];
+  const m = Math.max(...rgb, 0.05);
+  return rgb.map((c) => c / m);
 }
 
 export const starburst = {
@@ -136,8 +139,7 @@ export const starburst = {
       tip: 'Leve separação de cores ao longo dos raios, como em filtros estrela reais.' },
     { id: 'coreDisp', type: 'range', label: 'Brilho cromático', chip: 'Cromático', min: 0, max: 100, step: 1, default: 0, unit: '%',
       tip: 'Variação de cor no brilho do centro: bordas avermelhadas/azuladas e um halo nas cores do espectro.' },
-    { id: 'sat', type: 'range', label: 'Saturação da cor', chip: 'Saturação', min: 0, max: 100, step: 1, default: 0, unit: '%' },
-    { id: 'hue', type: 'range', label: 'Matiz', min: 0, max: 360, step: 1, default: 40, unit: '°' },
+    { id: 'color', type: 'color', label: 'Cor da luz', default: '#FFFFFF' },
     { id: 'seed', type: 'range', label: 'Aleatoriedade', min: 1, max: 100, step: 1, default: 1,
       tip: 'Sorteia outro padrão de variação e falhas.' },
   ],
@@ -161,7 +163,7 @@ export const starburst = {
       'uStars[0]': arr, uCount: stars.length, uPoints: Math.round(p.points),
       uRot: (p.rotation * Math.PI) / 180, uLen: p.length, uCore: p.core, uThick: p.thickness,
       uInt: p.intensity / 100, uVar: p.variation / 100, uGaps: p.gaps / 100, uSeed: p.seed, uDisp: (p.disp || 0) / 100, uCoreDisp: (p.coreDisp || 0) / 100,
-      uColor: hueToRgb(p.hue, p.sat / 100),
+      uColor: lightFromHex(p.color),
     });
     return out.tex;
   },

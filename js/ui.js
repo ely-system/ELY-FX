@@ -229,3 +229,143 @@ export function touchSlider({ label, min, max, step = 1, value, unit = '', defau
   set(value);
   return { el: root, set, get: () => current };
 }
+
+// ---------------------------------------------------------------------------
+// Cores: conversões e seletor (estilo Lightroom mobile: quadro de matiz × saturação,
+// brilho, código hex e cores prontas; aplica ao vivo, "Cancelar" volta à cor anterior).
+// ---------------------------------------------------------------------------
+
+export function hexToRgb(hex) {
+  let h = String(hex || '').trim().replace(/^#/, '');
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  if (!/^[0-9a-f]{6}$/i.test(h)) return null;
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
+}
+
+export function rgbToHex([r, g, b]) {
+  return '#' + [r, g, b].map((v) => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0')).join('');
+}
+
+function rgbToHsv([r, g, b]) {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return [h, max ? d / max : 0, max];
+}
+
+function hsvToRgb(h, s, v) {
+  const f = (n) => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+  return [f(5), f(3), f(1)];
+}
+
+const SWATCHES = ['#ffffff', '#fff1d6', '#ffd08a', '#ff9a3c', '#ff5a4f', '#ff6ad5', '#a07cff', '#6aa8ff', '#5ce1e6', '#7dff9a'];
+let picker = null;
+
+function buildPicker() {
+  const dlg = el('dialog', 'dialog color-dialog');
+  dlg.innerHTML = `
+    <div class="cp-head"><span class="cp-title"></span><span class="cp-preview"></span></div>
+    <div class="cp-field"><div class="cp-cursor"></div></div>
+    <div class="cp-row"><label>Brilho</label><input class="cp-v" type="range" min="0" max="100" step="1"></div>
+    <div class="cp-row"><label for="cpHex">Hex</label><input id="cpHex" class="cp-hex" maxlength="7" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>
+    <div class="cp-swatches"></div>
+    <div class="dialog-actions"><button type="button" class="btn ghost cp-cancel">Cancelar</button><button type="button" class="btn primary cp-ok">OK</button></div>`;
+  document.body.append(dlg);
+  const q = (s) => dlg.querySelector(s);
+  const P = { dlg, field: q('.cp-field'), cursor: q('.cp-cursor'), v: q('.cp-v'), hex: q('.cp-hex'), preview: q('.cp-preview'), title: q('.cp-title') };
+  P.state = { h: 0, s: 0, v: 1, initial: '#ffffff', onInput: null };
+
+  const paint = (fromHex) => {
+    const { h, s, v } = P.state;
+    const hex = rgbToHex(hsvToRgb(h, s, v));
+    P.cursor.style.left = (h / 360) * 100 + '%';
+    P.cursor.style.top = (1 - s) * 100 + '%';
+    P.field.style.setProperty('--v', v);
+    P.v.value = Math.round(v * 100);
+    P.v.style.setProperty('--p', v * 100 + '%');
+    P.preview.style.background = hex;
+    if (!fromHex) P.hex.value = hex.toUpperCase();
+    return hex;
+  };
+  const emit = (live, fromHex) => { const hex = paint(fromHex); P.state.onInput?.(hex, live); };
+  P.paint = paint;
+
+  const pick = (e) => {
+    const r = P.field.getBoundingClientRect();
+    P.state.h = Math.min(360, Math.max(0, ((e.clientX - r.left) / r.width) * 360));
+    P.state.s = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
+    if (P.state.v < 0.05) P.state.v = 1; // tocar no quadro com brilho zerado traz a cor de volta
+    emit(true);
+  };
+  P.field.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { P.field.setPointerCapture(e.pointerId); } catch { /* ignora */ }
+    pick(e);
+    const move = (ev) => pick(ev);
+    const up = () => { P.field.removeEventListener('pointermove', move); P.field.removeEventListener('pointerup', up); emit(false); };
+    P.field.addEventListener('pointermove', move);
+    P.field.addEventListener('pointerup', up);
+  });
+  P.v.addEventListener('input', () => { P.state.v = P.v.value / 100; emit(true); });
+  P.v.addEventListener('change', () => emit(false));
+  P.hex.addEventListener('input', () => {
+    const rgb = hexToRgb(P.hex.value);
+    if (!rgb) return;
+    [P.state.h, P.state.s, P.state.v] = rgbToHsv(rgb);
+    emit(false, true);
+  });
+  P.hex.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); P.hex.blur(); } });
+  P.hex.addEventListener('blur', () => paint());
+  const sw = q('.cp-swatches');
+  for (const c of SWATCHES) {
+    const b = el('button', 'cp-swatch');
+    b.type = 'button';
+    b.style.background = c;
+    b.title = c.toUpperCase();
+    b.addEventListener('click', () => { [P.state.h, P.state.s, P.state.v] = rgbToHsv(hexToRgb(c)); emit(false); });
+    sw.append(b);
+  }
+  const cancel = () => { P.state.onInput?.(P.state.initial, false); dlg.close(); };
+  q('.cp-cancel').addEventListener('click', cancel);
+  q('.cp-ok').addEventListener('click', () => dlg.close());
+  dlg.addEventListener('cancel', (e) => { e.preventDefault(); cancel(); }); // Esc
+  return P;
+}
+
+/** Abre o seletor de cor. onInput(hex, live) é chamado ao vivo; Cancelar devolve a cor inicial. */
+export function openColorPicker({ title = 'Cor', value = '#ffffff', onInput }) {
+  picker ||= buildPicker();
+  const rgb = hexToRgb(value) || [1, 1, 1];
+  [picker.state.h, picker.state.s, picker.state.v] = rgbToHsv(rgb);
+  picker.state.initial = rgbToHex(rgb);
+  picker.state.onInput = onInput;
+  picker.title.textContent = title;
+  picker.paint();
+  picker.dlg.showModal();
+}
+
+/** Campo de cor para o painel: amostra + código; tocar abre o seletor. */
+export function colorField({ label, value, onInput, className = 'ctl ctl-color' }) {
+  const root = el('div', className);
+  const lab = el('span', 'ctl-color-label', label);
+  const btn = el('button', 'color-btn');
+  btn.type = 'button';
+  btn.innerHTML = '<span class="color-chip"></span><span class="color-hex"></span>';
+  root.append(lab, btn);
+  let current = value;
+  const set = (v) => {
+    current = v;
+    btn.querySelector('.color-chip').style.background = v;
+    btn.querySelector('.color-hex').textContent = String(v).toUpperCase();
+  };
+  btn.addEventListener('click', () => openColorPicker({ title: label, value: current, onInput: (hex, live) => { set(hex); onInput?.(hex, live); } }));
+  set(value);
+  return { el: root, set, get: () => current };
+}

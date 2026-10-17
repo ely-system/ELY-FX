@@ -5,6 +5,8 @@
 // Na prévia, quando cada pixel da tela cobre vários grãos, a intensidade é atenuada para parecer
 // com o resultado final visto de longe.
 
+import { hexToRgb } from '../ui.js';
+
 const FS = `#version 300 es
 precision highp float;
 uniform sampler2D uTex;
@@ -56,10 +58,9 @@ void main() {
   outColor = vec4(col.rgb + n * uSigma, col.a);
 }`;
 
-function hueToRgb(h, s) {
-  const k = (n) => (n + h / 30) % 12;
-  const f = (n) => 1 - Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
-  const rgb = [f(0), f(8), f(4)].map((c) => 1 - s + s * c);
+/** Cor do ruído tonalizado, normalizada para luminância 1 (a intensidade vem da Quantidade). */
+function tintFromHex(hex) {
+  const rgb = hexToRgb(hex) || [1, 1, 1];
   const luma = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
   return rgb.map((c) => c / Math.max(0.05, luma));
 }
@@ -78,8 +79,7 @@ export const noise = {
       tip: 'Grãos maiores ficam mais suaves, como granulado de filme.' },
     { id: 'dist', type: 'select', label: 'Distribuição', default: 'gauss',
       options: [{ value: 'uniform', label: 'Uniforme' }, { value: 'gauss', label: 'Gaussiana' }] },
-    { id: 'hue', type: 'range', label: 'Matiz', min: 0, max: 360, step: 1, default: 30, unit: '°', showIf: isTint },
-    { id: 'sat', type: 'range', label: 'Saturação da cor', chip: 'Saturação', min: 0, max: 100, step: 1, default: 60, unit: '%', showIf: isTint },
+    { id: 'color', type: 'color', label: 'Cor do ruído', default: '#E8A04C', showIf: isTint },
     { id: 'seed', type: 'range', label: 'Variação', min: 1, max: 100, step: 1, default: 1,
       tip: 'Muda o padrão aleatório do ruído.' },
   ],
@@ -96,7 +96,7 @@ export const noise = {
       uType: p.type === 'rgb' ? 0 : p.type === 'mono' ? 1 : 2,
       uDist: p.dist === 'uniform' ? 0 : 1,
       uSigma: (p.amount / 100) * 0.25 * atten,
-      uSize: p.size, uTint: hueToRgb(p.hue, p.sat / 100), uSeed: p.seed,
+      uSize: p.size, uTint: tintFromHex(p.color), uSeed: p.seed,
     });
     return out.tex;
   },
