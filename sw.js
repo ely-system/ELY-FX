@@ -23,6 +23,8 @@ const SHELL = [
   './js/effects/radialCommon.js',
   './js/effects/radialBlur.js',
   './js/effects/zoomBlur.js',
+  './js/effects/directionalBlur.js',
+  './js/effects/gaussianBlur.js',
 ];
 
 self.addEventListener('install', (e) => {

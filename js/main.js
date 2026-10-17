@@ -340,6 +340,8 @@ const ovCenter = $('#ovCenter');
 const ovRings = $('#ovRings');
 
 function updateOverlay() {
+  // Efeitos sem ponto de origem: arrastar move a vista, então o cursor vira a "mão".
+  stage.classList.toggle('no-origin', !state.effect.originParams);
   overlay.style.display = state.loaded && state.effect.overlay ? '' : 'none';
   if (!state.loaded || !state.effect.overlay) return;
   const o = state.effect.overlay(state.params, renderer.src.w, renderer.src.h);
@@ -499,7 +501,8 @@ function cancelSingleAction() {
 /** Começa a ação da ferramenta atual no ponto p (mover origem, pintar ou, fora da foto, mover a vista). */
 function startAction(p) {
   if (state.tool === 'center') {
-    if (!insideImage(p)) {
+    // Fora da foto, ou em efeitos sem ponto de origem (direcional, gaussiano): move a vista.
+    if (!insideImage(p) || !state.effect.originParams) {
       drag = { type: 'pan', last: p };
       setPanning(true);
       return;
@@ -1042,7 +1045,8 @@ function muiEffectItems() {
     const [min, max] = def.range && state.loaded ? def.range(renderer.src.w, renderer.src.h) : [def.min, def.max];
     items.push({
       key: def.id, label: def.group ? def.label : (def.chip || def.label), group: def.group,
-      type: def.type, options: def.options, min, max, step: def.step, unit: def.unit === '%' ? '%' : (def.unit ? ' ' + def.unit : ''),
+      type: def.type, options: def.options, min, max, step: def.step,
+      unit: def.unit === '%' || def.unit === '°' ? def.unit : (def.unit ? ' ' + def.unit : ''),
       default: def.default, get: () => state.params[def.id],
       set: (v, live) => {
         if (isOriginParam(def.id)) beginOriginEdit();
@@ -1083,7 +1087,8 @@ function muiSegRow(it) {
   label.className = 'mrow-label';
   label.textContent = it.label;
   const seg = document.createElement('div');
-  seg.className = 'mrow-seg';
+  const long = it.options.length > 3 && it.options.some((o) => (o.short || o.label).length > 7);
+  seg.className = 'mrow-seg' + (long ? ' grid' : '');
   seg.setAttribute('role', 'group');
   seg.setAttribute('aria-label', it.label);
   for (const o of it.options) {

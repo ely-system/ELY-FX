@@ -10,7 +10,15 @@ Equivalente ao *Filtro › Desfoque › Desfoque radial › Giro* do Photoshop: 
 ### Desfoque de zoom
 Equivalente ao *Desfoque radial › Zoom* do Photoshop: rastro em linha reta saindo do ponto de origem.
 
-Controles dos dois efeitos:
+### Desfoque direcional
+Equivalente ao *Desfoque de Movimento* do Photoshop: rastro em linha reta com **Ângulo** (−90° a 90°, 0° = horizontal)
+e **Distância** (px da foto), em vários passes para um rastro contínuo.
+
+### Desfoque gaussiano
+Equivalente ao *Desfoque Gaussiano* do Photoshop, com **Raio** em px da foto. Separável (horizontal + vertical);
+raios grandes são calculados em resolução reduzida e ampliados, mantendo a velocidade.
+
+Controles dos desfoques radial e de zoom:
 
 - **Direção:** nos dois sentidos, ou rastro só para um lado (horário / anti-horário; para fora / para dentro).
 - **Intensidade:** 0–100.
@@ -88,6 +96,8 @@ js/effects/index.js     registro de efeitos
 js/effects/radialCommon.js  base dos desfoques com ponto de origem
 js/effects/radialBlur.js
 js/effects/zoomBlur.js
+js/effects/directionalBlur.js
+js/effects/gaussianBlur.js
 ```
 
 Para adicionar um efeito novo, crie um módulo em `js/effects/` com `id`, `name`, `params` e `render()` (veja `radialBlur.js` / `radialCommon.js`) e registre-o em `js/effects/index.js`. Os controles do painel são gerados automaticamente a partir de `params`.

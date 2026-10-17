@@ -3,8 +3,10 @@
 // e inclua-o nesta lista.
 import { radialBlur } from './radialBlur.js';
 import { zoomBlur } from './zoomBlur.js';
+import { directionalBlur } from './directionalBlur.js';
+import { gaussianBlur } from './gaussianBlur.js';
 
-export const effects = [radialBlur, zoomBlur];
+export const effects = [radialBlur, zoomBlur, directionalBlur, gaussianBlur];
 
 export function defaultParams(effect) {
   return Object.fromEntries(effect.params.map((p) => [p.id, p.default]));

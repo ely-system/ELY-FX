@@ -77,6 +77,8 @@ export class Renderer {
 
     this.src = null;           // { tex, w, h }
     this.pool = [];            // render targets da prévia
+    this._scratch = new Map(); // alvos auxiliares nomeados (ex.: desfoque em resolução reduzida)
+    this._exporting = null;    // durante a exportação: { temps, fmt }
     this.fxTex = null;
     this.fxSize = [0, 0];
     this.bg = [0x16 / 255, 0x16 / 255, 0x16 / 255];
@@ -139,6 +141,26 @@ export class Renderer {
     this._magNearest = false;
     this.src = { tex, w, h };
     this.fxTex = null;
+  }
+
+  /**
+   * Alvo auxiliar de tamanho livre para efeitos (ex.: desfoque gaussiano em resolução reduzida).
+   * Na prévia fica guardado e é reaproveitado; na exportação é temporário.
+   */
+  scratch(name, w, h) {
+    const gl = this.gl;
+    if (this._exporting) {
+      const t = createTarget(gl, w, h, this._exporting.fmt);
+      this._exporting.temps.push(t);
+      return t;
+    }
+    let t = this._scratch.get(name);
+    if (!t || t.w !== w || t.h !== h) {
+      deleteTarget(gl, t);
+      t = createTarget(gl, w, h, this.fmtWork);
+      this._scratch.set(name, t);
+    }
+    return t;
   }
 
   _ensurePool(w, h) {
@@ -206,6 +228,7 @@ export class Renderer {
       // Em aparelhos com pouca memória usa buffers de 8 bits (metade da memória).
       const work = lowMemory ? this.fmt8 : this.fmtWork;
       const pool = [target(work), target(work)];
+      this._exporting = { temps, fmt: work };
       const fxTex = effect.render(this, this.src, w, h, params, (i) => pool[i % 2]);
       const out = target(this.fmt8);
       if (this._magNearest) {
@@ -232,6 +255,7 @@ export class Renderer {
       if (err === gl.OUT_OF_MEMORY) throw new Error('Memória de vídeo insuficiente para exportar.');
       return new ImageData(data, w, h);
     } finally {
+      this._exporting = null;
       for (const t of temps) deleteTarget(gl, t);
     }
   }
