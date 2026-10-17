@@ -62,6 +62,8 @@ svg { display: block; }
 }
 .icon-btn:hover:not(:disabled) { background: var(--panel-2); }
 .icon-btn:disabled { opacity: .35; cursor: default; }
+.icon-btn.toggle-btn { color: var(--faint); }
+.icon-btn.toggle-btn.on { color: var(--accent); }
 .icon-btn svg, .tool svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
 .link-btn { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 2px 0; font-size: 12px; }

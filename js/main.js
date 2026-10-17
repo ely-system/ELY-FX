@@ -41,6 +41,7 @@ const state = {
   tool: 'center',
   brush: { size: 250, hardness: 30, flow: 100 },
   showMask: false,
+  showGuides: true,    // marcador do efeito (ponto de origem / pontos de luz) visível e editável
   compare: false,      // modo antes/depois ligado pelo botão
   compareHold: false,  // tecla \ ou toque longo
   space: false,
@@ -457,7 +458,7 @@ function effectActionButtons(L, cls) {
 
 const selectedPoints = () => {
   const L = state.selected;
-  return L && L.visible && L.effect.points ? L : null;
+  return state.showGuides && L && L.visible && L.effect.points ? L : null;
 };
 
 /** Troca a lista de pontos da camada, registrando no histórico. */
@@ -627,7 +628,7 @@ setTool('center');
 const isBrush = () => state.tool === 'add' || state.tool === 'sub';
 const selectedOrigin = () => {
   const L = state.selected;
-  return L && L.visible && L.effect.originParams ? L : null;
+  return state.showGuides && L && L.visible && L.effect.originParams ? L : null;
 };
 
 // ---------------------------------------------------------------------------
@@ -638,6 +639,19 @@ const ovCenter = $('#ovCenter');
 const ovRings = $('#ovRings');
 
 const ovPoints = $('#ovPoints');
+
+// Botão do marcador (barra de cima): oculta o alvo do ponto de origem e os pontos de luz.
+// Desligado, arrastar na foto só move a vista. A escolha fica salva neste aparelho.
+const btnGuides = $('#btnGuides');
+function setShowGuides(on) {
+  state.showGuides = on;
+  btnGuides.classList.toggle('on', on);
+  btnGuides.setAttribute('aria-pressed', String(on));
+  try { localStorage.setItem('elyfx-guides', on ? '1' : '0'); } catch { /* sem storage */ }
+  requestRender();
+}
+btnGuides.addEventListener('click', () => setShowGuides(!state.showGuides));
+try { if (localStorage.getItem('elyfx-guides') === '0') setShowGuides(false); } catch { /* sem storage */ }
 
 function updateOverlay() {
   const L = selectedOrigin();
@@ -1278,6 +1292,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyX': setTool(state.tool === 'add' ? 'sub' : 'add'); return;
     case 'KeyH': setTool('pan'); return;
     case 'KeyM': setShowMask(!state.showMask); return;
+    case 'KeyG': setShowGuides(!state.showGuides); return;
     case 'BracketLeft':
     case 'BracketRight': {
       const up = e.code === 'BracketRight';
