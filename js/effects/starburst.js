@@ -25,6 +25,7 @@ uniform float uInt;
 uniform float uVar;
 uniform float uGaps;
 uniform float uSeed;
+uniform float uDisp;          // dispersão (arco-íris) ao longo dos raios
 uniform vec3 uColor;
 out vec4 outColor;
 
@@ -43,14 +44,15 @@ void main() {
   float th = max(uThick, uPx * 0.8);
   float gain = uThick / th;
   float cr = max(uCore, uPx);
-  float light = 0.0;
+  float core = 0.0;
+  vec3 rays = vec3(0.0);
   float n = float(uPoints);
 
   for (int i = 0; i < ${MAX_STARS}; i++) {
     if (i >= uCount) break;
     vec2 d = p - uStars[i];
     float r2 = dot(d, d);
-    if (uCore > 0.0) light += exp(-r2 / (cr * cr)) + 0.18 * cr * cr / (r2 + cr * cr);
+    if (uCore > 0.0) core += exp(-r2 / (cr * cr)) + 0.18 * cr * cr / (r2 + cr * cr);
     if (r2 > uLen * uLen * 1.1) continue;
     float si = float(i) * 17.31;
     for (int k = 0; k < 16; k++) {
@@ -67,18 +69,29 @@ void main() {
       if (t >= L) continue;
       float s = abs(d.x * dir.y - d.y * dir.x);
       float u = t / L;
-      float w = th * (1.0 - 0.6 * u) + 1e-4;
-      float across = exp(-(s * s) / (w * w));
-      float along = pow(1.0 - u, 1.6) * (1.0 - uVar * 0.6 * rb);
-      float gap = 1.0;
+      float w = th * (1.0 - 0.55 * u) + 1e-4;
+      // Traço fino com um leve brilho em volta, como a difração de um filtro real.
+      float across = exp(-(s * s) / (w * w)) + 0.22 * exp(-(s * s) / (w * w * 16.0));
+      // Forte perto do centro e uma cauda longa que se apaga aos poucos.
+      float along = (0.55 * exp(-5.0 * u) + 0.45 * (1.0 - u) * (1.0 - u)) * (1.0 - uVar * 0.6 * rb);
+      // Falhas: a opacidade varia suavemente ao longo do raio (várias escalas de irregularidade);
+      // no máximo chega a apagar trechos, mas sempre com transição macia.
+      float irr = 1.0;
       if (uGaps > 0.001) {
-        float g = vnoise(t / max(uLen * 0.05, 1.0), si + fk * 13.7);
-        gap = mix(1.0, smoothstep(uGaps - 0.12, uGaps + 0.12, g), smoothstep(0.03, 0.18, u));
+        float x = t / max(L * 0.09, 1.0);
+        float s0 = si + fk * 13.7;
+        float nf = 0.55 * vnoise(x, s0) + 0.3 * vnoise(x * 2.3 + 5.1, s0 + 3.0) + 0.15 * vnoise(x * 5.3 + 9.7, s0 + 7.0);
+        irr = mix(1.0, smoothstep(0.1, 0.9, nf), uGaps * smoothstep(0.02, 0.2, u));
       }
-      light += across * along * gap * gain * 1.4;
+      vec3 tint = vec3(1.0);
+      if (uDisp > 0.001) {
+        vec3 spec = 0.5 + 0.5 * cos(6.2831853 * (t / max(L * 0.3, 1.0) + rb + vec3(0.0, 0.33, 0.67)));
+        tint = mix(vec3(1.0), spec * 1.4, uDisp);
+      }
+      rays += tint * (across * along * irr * gain * 1.6);
     }
   }
-  vec3 add = clamp(uColor * light * uInt, 0.0, 1.0);
+  vec3 add = clamp(uColor * (core + rays) * uInt, 0.0, 1.0);
   outColor = vec4(1.0 - (1.0 - clamp(col.rgb, 0.0, 1.0)) * (1.0 - add), col.a);
 }`;
 
@@ -105,8 +118,10 @@ export const starburst = {
     { id: 'intensity', type: 'range', label: 'Intensidade', min: 0, max: 200, step: 1, default: 100, unit: '%' },
     { id: 'variation', type: 'range', label: 'Variação', min: 0, max: 100, step: 1, default: 40, unit: '%',
       tip: 'Deixa cada raio diferente: comprimento, brilho e leve desvio de ângulo.' },
-    { id: 'gaps', type: 'range', label: 'Falhas', min: 0, max: 100, step: 1, default: 30, unit: '%',
-      tip: 'Interrupções ao longo dos raios, em pontos diferentes de cada um.' },
+    { id: 'gaps', type: 'range', label: 'Falhas', min: 0, max: 100, step: 1, default: 45, unit: '%',
+      tip: 'Variação suave de opacidade ao longo de cada raio, em pontos diferentes; no máximo apaga trechos.' },
+    { id: 'disp', type: 'range', label: 'Dispersão (arco-íris)', chip: 'Dispersão', min: 0, max: 100, step: 1, default: 0, unit: '%',
+      tip: 'Leve separação de cores ao longo dos raios, como em filtros estrela reais.' },
     { id: 'sat', type: 'range', label: 'Saturação da cor', chip: 'Saturação', min: 0, max: 100, step: 1, default: 0, unit: '%' },
     { id: 'hue', type: 'range', label: 'Matiz', min: 0, max: 360, step: 1, default: 40, unit: '°' },
     { id: 'seed', type: 'range', label: 'Aleatoriedade', min: 1, max: 100, step: 1, default: 1,
@@ -131,7 +146,7 @@ export const starburst = {
       uPx: img.w / w,
       'uStars[0]': arr, uCount: stars.length, uPoints: Math.round(p.points),
       uRot: (p.rotation * Math.PI) / 180, uLen: p.length, uCore: p.core, uThick: p.thickness,
-      uInt: p.intensity / 100, uVar: p.variation / 100, uGaps: p.gaps / 100, uSeed: p.seed,
+      uInt: p.intensity / 100, uVar: p.variation / 100, uGaps: p.gaps / 100, uSeed: p.seed, uDisp: (p.disp || 0) / 100,
       uColor: hueToRgb(p.hue, p.sat / 100),
     });
     return out.tex;
