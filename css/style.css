@@ -245,16 +245,9 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
 .shortcuts dt { color: var(--text); font-family: ui-monospace, Consolas, monospace; font-size: 11px; max-width: 130px; }
 .shortcuts dd { margin: 0; color: var(--muted); }
 
-/* ---------- App instalado no iPhone/iPad (iOS 26) ----------
-   O sistema aplica um desfoque próprio que desce ~40pt a partir do topo da área do app e não pode ser
-   desligado. A barra superior ganha essa folga (na mesma cor sólida), então os botões ficam abaixo dele.
-   Com o celular deitado o iOS esconde a barra de status e a folga não é necessária. */
-.ios-app { --ios-edge: 40px; }
-@media (orientation: landscape) and (max-height: 500px) { .ios-app { --ios-edge: 0px; } }
-
 /* ---------- Aviso de nova versão ---------- */
 .update-bar {
-  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + var(--ios-edge, 0px) + 56px); transform: translateX(-50%); z-index: 20;
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 56px); transform: translateX(-50%); z-index: 20;
   display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 12px;
   background: #2a2416; border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,.5);
   max-width: calc(100vw - 24px); font-size: 13px;
@@ -301,10 +294,11 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
     /* Folga embaixo das abas, conforme aparelho e modo de uso:
        - navegador, ou Android com botões na tela: o sistema já reserva o espaço (área segura 0) → 4px;
        - app instalado em aparelho com barra de gestos (iPhone ~34px): só o necessário para não
-         encostar no indicador de início (área segura − 20px). */
-    --bottom-gap: max(4px, calc(env(safe-area-inset-bottom, 0px) - 20px));
+         encostar no indicador de início (área segura − 20px). A área segura é limitada a 34px porque
+         o iOS às vezes informa valores inflados (~86px) em apps instalados, o que sobrava em branco. */
+    --bottom-gap: max(4px, calc(min(env(safe-area-inset-bottom, 0px), 34px) - 20px));
   }
-  html, body { overscroll-behavior: none; }
+  html, body { overscroll-behavior: none; background: var(--stage); }
   body { display: block; height: 100vh; height: 100dvh; touch-action: manipulation; }
   .m-only { display: block; }
   .d-only { display: none !important; }
@@ -313,7 +307,7 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   .topbar {
     position: fixed; top: 0; left: 0; right: 0; z-index: 6; height: auto; min-height: 0;
     padding: env(safe-area-inset-top) 8px 0; padding-bottom: 4px;
-    padding-top: calc(env(safe-area-inset-top) + var(--ios-edge, 0px) + 4px);
+    padding-top: calc(env(safe-area-inset-top) + 4px);
     /* Opaca de propósito: no iPhone (iOS 26, "Liquid Glass") o sistema aplica um desfoque próprio sobre
        conteúdo translúcido no topo da tela. Com cor sólida (igual à theme-color) não há o que desfocar. */
     background: var(--stage); border-bottom: 1px solid rgba(255,255,255,.05);
@@ -329,7 +323,9 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   #btnOpen .m-icon { display: block; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
   /* a foto usa a tela inteira; barras e painel ficam por cima */
-  .workspace { position: fixed; inset: 0; display: block; }
+  /* Contêiner fixo, da largura da tela e opaco: no iOS 26 é o que faz o sistema usar a cor do app
+     na borda superior em vez do desfoque "Liquid Glass" (como em outros PWAs sem o efeito). */
+  .workspace { position: fixed; inset: 0; display: block; background: var(--stage); }
   .toolbar, .panel { display: none !important; }
   .stage { position: absolute; inset: 0; -webkit-touch-callout: none; }
 

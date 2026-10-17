@@ -1176,7 +1176,8 @@ function muiSetTab(tab, forceOpen = false) {
 
 function muiApply() {
   mui.classList.toggle('collapsed', !muiOpen);
-  for (const b of mui.querySelectorAll('.mtabs [data-tab]')) b.classList.toggle('active', b.dataset.tab === muiTab);
+  // Painel recolhido: nenhuma aba fica marcada.
+  for (const b of mui.querySelectorAll('.mtabs [data-tab]')) b.classList.toggle('active', muiOpen && b.dataset.tab === muiTab);
   // No celular a ferramenta segue a aba: Efeito = mover origem, Máscara = pincel.
   if (mobileLayout.matches) setTool(muiTab === 'mask' ? lastBrushTool : 'center');
 }
