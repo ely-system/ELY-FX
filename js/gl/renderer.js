@@ -1,47 +1,102 @@
-// Pipeline de renderização:
-//   foto original ──► efeito (N passes, resolução de prévia ou total) ──► composição com máscara ──► tela / exportação
+// Pipeline de renderização com camadas de efeito:
 //
-// O efeito só é recalculado quando os parâmetros mudam. Pintar a máscara, dar zoom ou mover a
-// visualização só refaz a composição final, que é barata.
+//   foto ─► camada 1 ─► camada 2 ─► … ─► resultado ─► tela / exportação
+//
+// Cada camada recebe o resultado das camadas de baixo, calcula o seu efeito (fx) e o mistura com a
+// entrada conforme a máscara e as opacidades (out). Na prévia, fx e out de cada camada ficam guardados:
+// mexer numa camada recalcula só ela e as de cima; pintar a máscara refaz só a mistura.
+//
+// O canal alfa de "out" guarda quanto da foto original ainda passa intacto (1 = nenhum efeito).
+// Na tela isso permite mostrar a foto em resolução TOTAL nas áreas sem efeito, mesmo que a pilha
+// seja calculada na resolução de prévia:  tela = fração·original_total + (resultado − fração·original_prévia).
 
 import { createProgram, useProgram, createTarget, deleteTarget, GLSL_HASH } from './glutil.js';
 
-const COMPOSITE_FS = `#version 300 es
+const MIX_FS = `#version 300 es
 precision highp float;
-uniform sampler2D uOrig;
+uniform sampler2D uIn;
+uniform float uInLod;
+uniform bool uFirst;        // a entrada é a foto original (alfa da foto não conta)
 uniform sampler2D uFx;
+uniform float uFxLod;
 uniform sampler2D uMask;
 uniform sampler2D uStroke;
-uniform vec2 uCanvas;      // tamanho do alvo em px
-uniform vec2 uOffset;      // posição (px do alvo) do canto superior esquerdo da imagem
-uniform float uScale;      // px do alvo por px da imagem
-uniform vec2 uImg;         // tamanho da imagem em px
-uniform bool uFlipY;       // true quando o alvo é a tela (origem embaixo)
-uniform int uStrokeMode;   // 0 nenhum, 1 marcar área, 2 desmarcar área
-uniform float uMaskOpacity; // opacidade geral da máscara
-uniform float uFxOpacity;   // opacidade geral do efeito
+uniform int uStrokeMode;    // 0 nenhum, 1 marcar área, 2 desmarcar área
+uniform float uMaskOpacity;
+uniform float uFxOpacity;
+uniform vec2 uRes;
+out vec4 outColor;
+void main() {
+  vec2 uv = gl_FragCoord.xy / uRes;
+  vec4 inC = textureLod(uIn, uv, uInLod);
+  vec3 fx = textureLod(uFx, uv, uFxLod).rgb;
+  float m = texture(uMask, uv).r;
+  float s = clamp(texture(uStroke, uv).a, 0.0, 1.0);
+  if (uStrokeMode == 1) m = m + (1.0 - m) * s;
+  else if (uStrokeMode == 2) m = m * (1.0 - s);
+  float a = (1.0 - m * uMaskOpacity) * uFxOpacity;
+  float keep = (uFirst ? 1.0 : inC.a) * (1.0 - a);
+  outColor = vec4(mix(inC.rgb, fx, a), keep);
+}`;
+
+const COPY_FS = `#version 300 es
+precision highp float;
+uniform sampler2D uTex;
+uniform float uLod;
+uniform vec2 uRes;
+out vec4 outColor;
+void main() { outColor = textureLod(uTex, gl_FragCoord.xy / uRes, uLod); }`;
+
+// Saída final da exportação: só cor, alfa opaco e dithering contra banding.
+const FINAL_FS = `#version 300 es
+precision highp float;
+uniform sampler2D uTex;
+uniform float uLod;
+uniform vec2 uRes;
+out vec4 outColor;
+${GLSL_HASH}
+void main() {
+  vec3 c = textureLod(uTex, gl_FragCoord.xy / uRes, uLod).rgb;
+  c += (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
+  outColor = vec4(c, 1.0);
+}`;
+
+const DISPLAY_FS = `#version 300 es
+precision highp float;
+uniform sampler2D uOrig;
+uniform sampler2D uFinal;
+uniform bool uHasFinal;
+uniform float uLowLod;      // mipmap da foto equivalente à resolução da prévia
+uniform sampler2D uMask;
+uniform sampler2D uStroke;
+uniform int uStrokeMode;
+uniform vec2 uCanvas;
+uniform vec2 uOffset;
+uniform float uScale;
+uniform vec2 uImg;
 uniform bool uShowOriginal;
 uniform bool uShowMask;
 uniform vec3 uBg;
 out vec4 outColor;
 ${GLSL_HASH}
 void main() {
-  vec2 fc = gl_FragCoord.xy;
-  if (uFlipY) fc.y = uCanvas.y - fc.y;
+  vec2 fc = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y);
   vec2 uv = (fc - uOffset) / uScale / uImg;
 
   // Amostras antes de qualquer desvio de fluxo (derivadas implícitas precisam de fluxo uniforme).
-  vec3 orig = texture(uOrig, uv).rgb;
-  vec3 fx = texture(uFx, uv).rgb;
-  float m = texture(uMask, uv).r;            // área marcada (1 = sem efeito)
+  vec3 origFull = texture(uOrig, uv).rgb;
+  vec3 origLow = textureLod(uOrig, uv, uLowLod).rgb;
+  vec4 fin = texture(uFinal, uv);
+  float m = texture(uMask, uv).r;
   float s = clamp(texture(uStroke, uv).a, 0.0, 1.0);
 
-  if (uStrokeMode == 1) m = m + (1.0 - m) * s;
-  else if (uStrokeMode == 2) m = m * (1.0 - s);
-
-  float amount = (1.0 - m * uMaskOpacity) * uFxOpacity;
-  vec3 col = uShowOriginal ? orig : mix(orig, fx, amount);
-  if (uShowMask) col = mix(col, vec3(1.0, 0.12, 0.18), m * 0.55);
+  vec3 col = origFull;
+  if (uHasFinal && !uShowOriginal) col = fin.a * origFull + (fin.rgb - fin.a * origLow);
+  if (uShowMask) {
+    if (uStrokeMode == 1) m = m + (1.0 - m) * s;
+    else if (uStrokeMode == 2) m = m * (1.0 - s);
+    col = mix(col, vec3(1.0, 0.12, 0.18), m * 0.55);
+  }
   col += (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
 
   bool inside = all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
@@ -61,7 +116,7 @@ export class Renderer {
     const hasFloat = !!gl.getExtension('EXT_color_buffer_float');
     this.hasFloat = hasFloat;
     this.fmt8 = { internal: gl.RGBA8, format: gl.RGBA, type: gl.UNSIGNED_BYTE };
-    // Buffers intermediários em meia precisão evitam perda de qualidade entre passes do desfoque.
+    // Buffers intermediários em meia precisão evitam perda de qualidade entre passes e camadas.
     this.fmtWork = hasFloat ? { internal: gl.RGBA16F, format: gl.RGBA, type: gl.HALF_FLOAT } : this.fmt8;
     this.maxTex = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), gl.getParameter(gl.MAX_RENDERBUFFER_SIZE), 16384);
 
@@ -71,23 +126,26 @@ export class Renderer {
 
     this.triVao = this._vao([-1, -1, 3, -1, -1, 3]);
     this.quadVao = this._vao([-1, -1, 1, -1, -1, 1, 1, 1]);
-
     this._programs = new Map();
-    this.composite = this.program(COMPOSITE_FS);
 
-    this.src = null;           // { tex, w, h }
-    this.pool = [];            // render targets da prévia
-    this._scratch = new Map(); // alvos auxiliares nomeados (ex.: desfoque em resolução reduzida)
-    this._exporting = null;    // durante a exportação: { temps, fmt }
-    this.fxTex = null;
-    this.fxSize = [0, 0];
+    this.src = null;            // { tex, w, h } foto original com mipmaps
+    this.pool = [];             // alvos de trabalho dos efeitos (prévia)
+    this.stackSize = [0, 0];    // resolução da prévia da pilha
+    this._scratch = new Map();  // alvos auxiliares nomeados (ex.: desfoque em resolução reduzida)
+    this._exporting = null;     // durante a exportação: { temps, fmt }
     this.bg = [0x16 / 255, 0x16 / 255, 0x16 / 255];
     this._magNearest = false;
 
-    // Textura 1×1 vazia usada como "traço" quando não há pincelada ativa.
-    this.emptyTex = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.emptyTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+    // Texturas 1×1 vazias para quando não há traço / máscara.
+    this.emptyTex = this._tex1x1([0, 0, 0, 0]);
+  }
+
+  _tex1x1(rgba) {
+    const gl = this.gl;
+    const t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(rgba));
+    return t;
   }
 
   _vao(points) {
@@ -140,7 +198,13 @@ export class Renderer {
     gl.generateMipmap(gl.TEXTURE_2D);
     this._magNearest = false;
     this.src = { tex, w, h };
-    this.fxTex = null;
+  }
+
+  /** Resolução da prévia: lado maior até previewLong. */
+  previewSize(previewLong) {
+    const { w: sw, h: sh } = this.src;
+    const k = Math.min(1, previewLong / Math.max(sw, sh));
+    return [Math.max(1, Math.round(sw * k)), Math.max(1, Math.round(sh * k))];
   }
 
   /**
@@ -169,22 +233,78 @@ export class Renderer {
     this.pool = [createTarget(this.gl, w, h, this.fmtWork), createTarget(this.gl, w, h, this.fmtWork)];
   }
 
-  /** Recalcula o efeito na resolução de prévia (lado maior <= previewLong). */
-  updateFx(effect, params, previewLong) {
-    const { w: sw, h: sh } = this.src;
-    const k = Math.min(1, previewLong / Math.max(sw, sh));
-    const w = Math.max(1, Math.round(sw * k));
-    const h = Math.max(1, Math.round(sh * k));
-    this._ensurePool(w, h);
-    this.fxTex = effect.render(this, this.src, w, h, params, (i) => this.pool[i % 2]);
-    this.fxSize = [w, h];
+  _lodFor(tex, w, h) {
+    return tex === this.src.tex ? Math.max(0, Math.log2(Math.max(this.src.w / w, this.src.h / h))) : 0;
   }
 
-  /** Desenha a composição na tela. */
-  drawScreen({ view, dpr, mask, stroke, maskOpacity, fxOpacity, showOriginal, showMask }) {
+  /** Libera as texturas de prévia de uma camada. */
+  disposeLayer(L) {
+    deleteTarget(this.gl, L.fx);
+    deleteTarget(this.gl, L.out);
+    L.fx = L.out = null;
+  }
+
+  _mix(target, input, fxTex, L, stroke) {
+    const [w, h] = [target.w, target.h];
+    this.pass(this.program(MIX_FS), target, {
+      uIn: input.tex, uInLod: this._lodFor(input.tex, w, h), uFirst: input.tex === this.src.tex,
+      uFx: fxTex, uFxLod: this._lodFor(fxTex, w, h),
+      uMask: L.mask ? L.mask.tex : this.emptyTex,
+      uStroke: stroke ? stroke.tex : this.emptyTex,
+      uStrokeMode: stroke ? stroke.mode : 0,
+      uMaskOpacity: L.maskOpacity / 100, uFxOpacity: L.fxOpacity / 100, uRes: [w, h],
+    });
+  }
+
+  /**
+   * Atualiza a pilha na resolução de prévia e devolve a textura do resultado (ou null sem camadas).
+   * Camadas com fxDirty refazem o efeito; com mixDirty, só a mistura. Tudo acima de uma camada
+   * alterada é refeito. `stroke` = { layer, mode, tex } durante uma pincelada.
+   */
+  updateStack(layers, { previewLong, live = false, stroke = null }) {
+    const [w, h] = this.previewSize(previewLong);
+    if (w !== this.stackSize[0] || h !== this.stackSize[1]) {
+      for (const L of layers) { this.disposeLayer(L); L.fxDirty = true; }
+      this.stackSize = [w, h];
+    }
+    this._ensurePool(w, h);
+    const img = { w: this.src.w, h: this.src.h };
+    let input = { tex: this.src.tex, w: this.src.w, h: this.src.h };
+    let changed = false;
+    let top = null;
+    for (const L of layers) {
+      if (!L.visible) continue;
+      if (!L.fx || L.fx.w !== w || L.fx.h !== h) {
+        this.disposeLayer(L);
+        L.fx = createTarget(this.gl, w, h, this.fmtWork);
+        L.out = createTarget(this.gl, w, h, this.fmtWork);
+        L.fxDirty = true;
+      }
+      const redoFx = L.fxDirty || changed || (L.draft && !live);
+      if (redoFx) {
+        const p = live && 'quality' in L.params ? { ...L.params, quality: 'draft' } : L.params;
+        const res = L.effect.render(this, input, w, h, p, (i) => this.pool[i % 2], img);
+        this.pass(this.program(COPY_FS), L.fx, { uTex: res, uLod: this._lodFor(res, w, h), uRes: [w, h] });
+        L.fxDirty = false;
+        L.draft = live;
+      }
+      const strokeHere = stroke && stroke.layer === L ? stroke : null;
+      if (redoFx || L.mixDirty || changed || strokeHere) {
+        this._mix(L.out, input, L.fx.tex, L, strokeHere);
+        L.mixDirty = false;
+        changed = true;
+      }
+      input = { tex: L.out.tex, w, h };
+      top = L;
+    }
+    return top ? top.out.tex : null;
+  }
+
+  /** Desenha na tela: resultado da pilha (ou a foto original) e, se pedido, a área marcada. */
+  drawScreen({ view, dpr, final, mask, stroke, showOriginal, showMask }) {
     const gl = this.gl;
     const cw = gl.drawingBufferWidth, ch = gl.drawingBufferHeight;
-    if (!this.src || !this.fxTex) {
+    if (!this.src) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, cw, ch);
       gl.clearColor(this.bg[0], this.bg[1], this.bg[2], 1);
@@ -199,48 +319,61 @@ export class Renderer {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, nearest ? gl.NEAREST : gl.LINEAR);
       this._magNearest = nearest;
     }
-    this.pass(this.composite, null, {
+    const [w, h] = this.stackSize;
+    this.pass(this.program(DISPLAY_FS), null, {
       uOrig: this.src.tex,
-      uFx: this.fxTex,
-      uMask: mask.tex,
-      uStroke: stroke ? mask.strokeTex : this.emptyTex,
+      uFinal: final || this.emptyTex,
+      uHasFinal: !!final,
+      uLowLod: w ? Math.max(0, Math.log2(Math.max(this.src.w / w, this.src.h / h))) : 0,
+      uMask: mask ? mask.tex : this.emptyTex,
+      uStroke: stroke ? stroke.tex : this.emptyTex,
+      uStrokeMode: stroke ? stroke.mode : 0,
       uCanvas: [cw, ch],
       uOffset: [view.x * dpr, view.y * dpr],
       uScale: scale,
       uImg: [this.src.w, this.src.h],
-      uFlipY: true,
-      uStrokeMode: stroke ? stroke.mode : 0,
-      uMaskOpacity: maskOpacity,
-      uFxOpacity: fxOpacity,
       uShowOriginal: !!showOriginal,
-      uShowMask: !!showMask,
+      uShowMask: !!showMask && !!mask,
       uBg: this.bg,
     });
   }
 
-  /** Renderiza em resolução total e devolve ImageData. */
-  exportImage(effect, params, mask, { maskOpacity = 1, fxOpacity = 1, lowMemory = false } = {}) {
+  /**
+   * Processa a pilha em resolução total e devolve ImageData.
+   * Usa só 3 alvos em rodízio (entrada, trabalho e saída) para caber na memória de vídeo.
+   */
+  exportStack(layers, { lowMemory = false } = {}) {
     const gl = this.gl;
     const { w, h } = this.src;
     const temps = [];
-    const target = (fmt) => { const t = createTarget(gl, w, h, fmt); temps.push(t); return t; };
+    const make = (fmt) => { const t = createTarget(gl, w, h, fmt); temps.push(t); return t; };
+    const free = (t) => { deleteTarget(gl, t); temps.splice(temps.indexOf(t), 1); };
+    if (this._magNearest) {
+      gl.bindTexture(gl.TEXTURE_2D, this.src.tex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      this._magNearest = false;
+    }
     try {
-      // Em aparelhos com pouca memória usa buffers de 8 bits (metade da memória).
-      const work = lowMemory ? this.fmt8 : this.fmtWork;
-      const pool = [target(work), target(work)];
-      this._exporting = { temps, fmt: work };
-      const fxTex = effect.render(this, this.src, w, h, params, (i) => pool[i % 2]);
-      const out = target(this.fmt8);
-      if (this._magNearest) {
-        gl.bindTexture(gl.TEXTURE_2D, this.src.tex);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        this._magNearest = false;
+      // Fotos muito grandes ou aparelhos com pouca memória: buffers de 8 bits (metade da memória).
+      const fmt = lowMemory || w * h > 16e6 ? this.fmt8 : this.fmtWork;
+      const visible = layers.filter((L) => L.visible);
+      const T = visible.length ? [make(fmt), make(fmt), make(fmt)] : [];
+      this._exporting = { temps, fmt };
+      const img = { w, h };
+      let input = { tex: this.src.tex, w, h };
+      let inputT = null;
+      for (const L of visible) {
+        const freeT = T.filter((t) => t !== inputT);
+        const res = L.effect.render(this, input, w, h, L.params, (i) => freeT[i % 2], img);
+        const outT = T.find((t) => t !== inputT && t.tex !== res);
+        this._mix(outT, input, res, L, null);
+        input = { tex: outT.tex, w, h };
+        inputT = outT;
       }
-      this.pass(this.composite, out, {
-        uOrig: this.src.tex, uFx: fxTex, uMask: mask.tex, uStroke: this.emptyTex,
-        uCanvas: [w, h], uOffset: [0, 0], uScale: 1, uImg: [w, h], uFlipY: false,
-        uStrokeMode: 0, uMaskOpacity: maskOpacity, uFxOpacity: fxOpacity, uShowOriginal: false, uShowMask: false, uBg: this.bg,
-      });
+      for (const t of T) if (t !== inputT) free(t);
+      const out = make(this.fmt8);
+      this.pass(this.program(FINAL_FS), out, { uTex: input.tex, uLod: 0, uRes: [w, h] });
+
       const data = new Uint8ClampedArray(w * h * 4);
       gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo);
       gl.pixelStorei(gl.PACK_ALIGNMENT, 1);
@@ -251,12 +384,11 @@ export class Renderer {
         gl.readPixels(0, y, w, bh, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(data.buffer, y * w * 4, w * bh * 4));
       }
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      const err = gl.getError();
-      if (err === gl.OUT_OF_MEMORY) throw new Error('Memória de vídeo insuficiente para exportar.');
+      if (gl.getError() === gl.OUT_OF_MEMORY) throw new Error('Memória de vídeo insuficiente para exportar.');
       return new ImageData(data, w, h);
     } finally {
       this._exporting = null;
-      for (const t of temps) deleteTarget(gl, t);
+      for (const t of [...temps]) deleteTarget(gl, t);
     }
   }
 }

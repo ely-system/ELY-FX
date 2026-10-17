@@ -35,6 +35,7 @@ const QUALITY = {
 export const directionalBlur = {
   id: 'directional-blur',
   name: 'Desfoque direcional',
+  group: 'Desfoques',
   params: [
     { id: 'angle', type: 'range', label: 'Ângulo', min: -90, max: 90, step: 1, default: 0, unit: '°',
       tip: 'Direção do movimento: 0° horizontal, 90° vertical (como no Desfoque de Movimento do Photoshop).' },
@@ -44,9 +45,9 @@ export const directionalBlur = {
       options: [{ value: 'draft', label: 'Rascunho (rápida)', short: 'Rascunho' }, { value: 'good', label: 'Boa' }, { value: 'best', label: 'Ótima' }] },
   ],
 
-  render(r, src, w, h, p, target) {
+  render(r, src, w, h, p, target, img) {
     // Distância em px da foto original → px da resolução em que o efeito está sendo calculado.
-    const dist = p.distance * (w / src.w);
+    const dist = p.distance * (w / img.w);
     if (dist < 0.5) return src.tex;
     const q = QUALITY[p.quality] || QUALITY.good;
     // Ângulo como no Photoshop: positivo gira no sentido anti-horário (y da tela cresce para baixo).

@@ -245,6 +245,48 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
 .shortcuts dt { color: var(--text); font-family: ui-monospace, Consolas, monospace; font-size: 11px; max-width: 130px; }
 .shortcuts dd { margin: 0; color: var(--muted); }
 
+/* ---------- Camadas de efeito ---------- */
+#layersCard { position: relative; }
+.layer-list { display: flex; flex-direction: column; gap: 4px; }
+.layer-row {
+  display: flex; align-items: center; gap: 2px; height: 38px; padding: 0 4px; border-radius: 7px;
+  background: var(--panel); border: 1px solid var(--line); transition: transform .15s ease; position: relative;
+}
+.layer-row.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+.layer-row.off .layer-name { color: var(--faint); text-decoration: line-through; }
+.layer-row.dragging { transition: none; z-index: 2; box-shadow: 0 8px 20px rgba(0,0,0,.5); background: var(--panel-3); }
+.layer-handle {
+  width: 30px; height: 100%; display: grid; place-items: center; cursor: grab; color: var(--muted); touch-action: none; flex: none;
+}
+.layer-row.dragging .layer-handle { cursor: grabbing; }
+.layer-handle svg, .layer-eye svg, .layer-del svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.layer-name {
+  flex: 1; min-width: 0; height: 100%; text-align: left; background: none; border: 0; cursor: pointer; padding: 0 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text);
+}
+.layer-eye, .layer-del { width: 30px; height: 30px; display: grid; place-items: center; background: none; border: 0; border-radius: 6px; color: var(--muted); cursor: pointer; flex: none; }
+.layer-eye:hover, .layer-del:hover { background: var(--panel-3); color: var(--text); }
+.layer-del:hover { color: var(--danger); }
+.layer-empty { margin: 2px 0 0; }
+#layersHint { margin: 10px 0 0; }
+
+.fx-popover {
+  position: absolute; left: 10px; right: 10px; top: 46px; z-index: 10; padding: 12px;
+  background: var(--panel-2); border: 1px solid #3a3a3a; border-radius: 10px; box-shadow: 0 14px 40px rgba(0,0,0,.55);
+}
+.fx-picker { display: flex; flex-direction: column; gap: 12px; }
+.fx-group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 6px; }
+.fx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.fx-item {
+  min-height: 34px; padding: 6px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel);
+  color: var(--text); cursor: pointer; text-align: left; font-size: 12.5px;
+}
+.fx-item:hover { border-color: var(--accent); }
+.fx-soon { color: var(--faint); font-size: 12px; }
+
+#maskCard.disabled { opacity: .5; }
+#maskCard.disabled .controls, #maskCard.disabled .btn-row { pointer-events: none; }
+
 /* ---------- Diagnóstico (5 toques no logo) ---------- */
 .diag {
   position: fixed; left: 8px; right: 8px; top: calc(env(safe-area-inset-top) + 60px); z-index: 40;
@@ -412,8 +454,24 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   .mgroup[open] summary::before { transform: rotate(45deg); }
 
   .mtabs {
-    display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid rgba(255,255,255,.06);
+    display: grid; grid-template-columns: 1fr 1fr 1fr; border-top: 1px solid rgba(255,255,255,.06);
   }
+
+  /* abas Efeitos (camadas) e Ajustes */
+  .mui-head { display: flex; align-items: center; justify-content: space-between; min-height: 32px; font-size: 14px; font-weight: 600; color: #f0f0f0; }
+  .mui-head .link-btn { font-size: 13px; color: #cfcfcf; }
+  .mui-add { width: 100%; height: 40px; margin: 2px 0 10px; }
+  .mui-list .layer-list { gap: 6px; }
+  .mui-list .layer-row { height: 46px; background: rgba(0,0,0,.35); border-color: rgba(255,255,255,.1); }
+  .mui-list .layer-row.selected { border-color: var(--accent); background: rgba(224,182,90,.14); }
+  .mui-list .layer-handle { width: 40px; }
+  .mui-list .layer-name { font-size: 15px; }
+  .mui-list .layer-eye, .mui-list .layer-del { width: 40px; height: 40px; }
+  .mui-list .fx-grid { grid-template-columns: 1fr 1fr; }
+  .mui-list .fx-item { min-height: 42px; font-size: 14px; background: rgba(0,0,0,.35); border-color: rgba(255,255,255,.12); }
+  .mui-list .fx-group-title { color: #cfcfcf; }
+  .mui-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 8px; text-align: center; color: #d0d0d0; font-size: 14px; }
+  .mui-empty p { margin: 0; }
   .mtabs button {
     height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
     background: none; border: 0; color: var(--muted); font-size: 10.5px; cursor: pointer; -webkit-tap-highlight-color: transparent;

@@ -33,14 +33,15 @@ const MAX_SIGMA = 10;
 export const gaussianBlur = {
   id: 'gaussian-blur',
   name: 'Desfoque gaussiano',
+  group: 'Desfoques',
   params: [
     { id: 'radius', type: 'range', label: 'Raio', min: 0, max: 250, step: 0.5, default: 10, unit: 'px',
       tip: 'Intensidade do desfoque, em pixels da foto (como o Raio do Photoshop).' },
   ],
 
-  render(r, src, w, h, p, target) {
+  render(r, src, w, h, p, target, img) {
     // Raio em px da foto original → px da resolução em que o efeito está sendo calculado.
-    const sigma = p.radius * (w / src.w);
+    const sigma = p.radius * (w / img.w);
     if (sigma < 0.3) return src.tex;
 
     const s = Math.max(1, sigma / MAX_SIGMA);

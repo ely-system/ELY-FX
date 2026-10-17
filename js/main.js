@@ -1,7 +1,7 @@
 import { Renderer } from './gl/renderer.js';
-import { MaskLayer, MaskHistory, ADD, SUBTRACT } from './mask.js';
+import { MaskStore, History, ADD, SUBTRACT } from './mask.js';
 import { Viewport } from './viewport.js';
-import { effects, defaultParams } from './effects/index.js';
+import { effectsByGroup, defaultParams, visibleParams } from './effects/index.js';
 import { slider, select, touchSlider } from './ui.js';
 import { APP_VERSION } from './version.js';
 
@@ -25,55 +25,54 @@ try {
   document.body.append(d);
   throw err;
 }
-// Celulares e tablets têm menos memória de vídeo: máscara e prévia menores.
+// Celulares e tablets têm menos memória de vídeo: máscaras e prévia menores.
 const coarse = matchMedia('(pointer: coarse)').matches;
 const mobileLayout = matchMedia('(max-width: 860px)');
-const mask = new MaskLayer(renderer, coarse ? 2560 : 4096);
-const history = new MaskHistory(mask);
+const masks = new MaskStore(renderer, coarse ? 2560 : 4096);
+const history = new History();
 const view = new Viewport();
 
 const state = {
   loaded: false,
   fileName: 'foto',
-  effect: effects[0],
-  params: defaultParams(effects[0]),
+  layers: [],          // camadas de efeito, de baixo (índice 0) para cima
+  selected: null,      // camada em edição
   tool: 'center',
   brush: { size: 250, hardness: 30, flow: 100 },
-  maskOpacity: 100, // opacidade geral da máscara (%)
-  fxOpacity: 100,   // opacidade geral do efeito (%)
   showMask: false,
   compare: false,      // modo antes/depois ligado pelo botão
-  compareHold: false,  // tecla \ segurada
+  compareHold: false,  // tecla \ ou toque longo
   space: false,
   previewLong: coarse ? 1280 : 2048,
-  live: false, // usuário arrastando um controle → prévia rápida
+  live: false,         // usuário arrastando um controle ou pintando → prévia rápida
 };
 
-let fxDirty = true;
 let raf = 0;
 let lastPointer = null;      // posição do ponteiro sobre o palco (null = fora)
 let brushPreview = false;    // prévia vermelha do pincel visível por um instante
 let brushPreviewTimer = 0;
-let muiReady = false;         // interface do celular montada (evita uso antes da inicialização)
+let muiReady = false;        // interface do celular montada
+let strokeLayer = null;      // camada cuja máscara está sendo pintada
+let originEdit = null;       // edição do ponto de origem em andamento (para desfazer)
+let layerSeq = 0;
+let settingsControls = {};   // controles do painel de ajustes (desktop), por id do parâmetro
 
-function requestRender(fx = false) {
-  if (fx) fxDirty = true;
+function requestRender() {
   if (!raf) raf = requestAnimationFrame(frame);
 }
 
 function frame() {
   raf = 0;
-  if (state.loaded && fxDirty) {
-    const p = state.live ? { ...state.params, quality: 'draft' } : state.params;
-    renderer.updateFx(state.effect, p, state.previewLong);
-    fxDirty = false;
+  let final = null;
+  const stroke = masks.stroking && strokeLayer ? { layer: strokeLayer, mode: masks.mode, tex: masks.strokeTex } : null;
+  if (state.loaded) {
+    final = renderer.updateStack(state.layers, { previewLong: state.previewLong, live: state.live, stroke });
   }
-  const dpr = currentDpr();
+  const sel = state.selected;
   renderer.drawScreen({
-    view, dpr, mask: state.loaded ? mask : null,
-    stroke: mask.stroking ? { mode: mask.mode } : null,
-    maskOpacity: state.maskOpacity / 100,
-    fxOpacity: state.fxOpacity / 100,
+    view, dpr: currentDpr(), final,
+    mask: sel ? sel.mask : null,
+    stroke: stroke && stroke.layer === sel ? stroke : null,
     showOriginal: state.compare || state.compareHold,
     showMask: state.showMask,
   });
@@ -97,69 +96,323 @@ new ResizeObserver(() => {
 }).observe(stage);
 
 // ---------------------------------------------------------------------------
-// Painel: efeito
+// Camadas de efeito
 // ---------------------------------------------------------------------------
 
-const effectSelect = $('#effectSelect');
-for (const fx of effects) effectSelect.append(new Option(fx.name, fx.id));
-effectSelect.addEventListener('change', () => switchEffect(effectSelect.value));
-
-function switchEffect(id) {
-  const fx = effects.find((f) => f.id === id);
-  if (!fx || fx === state.effect) return;
-  state.effect = fx;
-  effectSelect.value = id;
-  // Mantém o ponto de origem ao trocar entre efeitos que o usam.
-  const keep = { ox: state.params.ox, oy: state.params.oy };
-  state.params = defaultParams(state.effect);
-  for (const k in keep) if (k in state.params && keep[k] != null) state.params[k] = keep[k];
-  buildEffectControls();
-  muiBuild();
-  requestRender(true);
+function createLayer(effect) {
+  return {
+    id: ++layerSeq, effect, params: defaultParams(effect), fxOpacity: 100, maskOpacity: 100, visible: true,
+    mask: masks.create(), fx: null, out: null, fxDirty: true, mixDirty: true, draft: false, refs: 0, destroyed: false,
+  };
 }
 
-const fxOpacityControl = slider({
-  label: 'Opacidade do efeito', min: 0, max: 100, value: state.fxOpacity, default: 100, unit: '%',
-  tip: 'Intensidade geral do efeito sobre a foto original, como a opacidade de uma camada.',
-  onInput: (v) => setFxOpacity(v),
-});
+/** Libera a camada da GPU quando ela não está na pilha nem é mais referenciada pelo histórico. */
+function maybeDestroy(L) {
+  if (L.destroyed || L.refs > 0 || state.layers.includes(L)) return;
+  renderer.disposeLayer(L);
+  masks.dispose(L.mask);
+  L.destroyed = true;
+}
 
-function setFxOpacity(v) {
-  fxOpacityControl.set(v);
-  state.fxOpacity = fxOpacityControl.get();
-  muiRefresh();
+/** Algo abaixo mudou: a partir do índice i, todas as camadas precisam refazer o efeito. */
+function dirtyFrom(i) {
+  for (let k = Math.max(0, i); k < state.layers.length; k++) state.layers[k].fxDirty = true;
   requestRender();
 }
 
-let paramControls = {};
+function layerHistory(entry, layer) {
+  layer.refs++;
+  entry.dispose = () => { layer.refs--; maybeDestroy(layer); };
+  history.push(entry);
+  updateHistoryButtons();
+}
+
+function addLayer(effect) {
+  if (!state.loaded) { toast('Abra uma foto primeiro.'); return; }
+  const L = createLayer(effect);
+  // Ponto de origem: começa no centro da foto (faixas dependem do tamanho da foto).
+  state.layers.push(L);
+  selectLayer(L);
+  const idx = state.layers.length - 1;
+  layerHistory({
+    undo: () => removeLayerAt(state.layers.indexOf(L), false),
+    redo: () => { insertLayerAt(L, idx); selectLayer(L); },
+  }, L);
+  layersChanged();
+  dirtyFrom(idx);
+}
+
+function insertLayerAt(L, idx) {
+  state.layers.splice(Math.min(idx, state.layers.length), 0, L);
+  L.fxDirty = true;
+  layersChanged();
+  dirtyFrom(idx);
+}
+
+function removeLayerAt(idx, record = true) {
+  const L = state.layers[idx];
+  if (!L) return;
+  state.layers.splice(idx, 1);
+  renderer.disposeLayer(L); // as texturas da prévia são refeitas se a camada voltar
+  if (state.selected === L) selectLayer(state.layers[Math.min(idx, state.layers.length - 1)] || null);
+  if (record) {
+    layerHistory({
+      undo: () => { insertLayerAt(L, idx); selectLayer(L); },
+      redo: () => removeLayerAt(state.layers.indexOf(L), false),
+    }, L);
+  }
+  layersChanged();
+  dirtyFrom(idx);
+  maybeDestroy(L);
+}
+
+function moveLayer(from, to, record = true) {
+  if (from === to || from < 0 || to < 0 || from >= state.layers.length || to >= state.layers.length) return;
+  const [L] = state.layers.splice(from, 1);
+  state.layers.splice(to, 0, L);
+  if (record) {
+    history.push({ undo: () => moveLayer(to, from, false), redo: () => moveLayer(from, to, false) });
+    updateHistoryButtons();
+  }
+  layersChanged();
+  dirtyFrom(Math.min(from, to));
+}
+
+function toggleVisible(L) {
+  L.visible = !L.visible;
+  layersChanged();
+  dirtyFrom(state.layers.indexOf(L));
+}
+
+function selectLayer(L) {
+  if (state.selected === L) return;
+  state.selected = L;
+  originEdit = null;
+  buildSettings();
+  layersChanged();
+  muiBuild();
+  requestRender();
+}
+
+/** Redesenha as listas de camadas (desktop e celular). */
+function layersChanged() {
+  renderLayerList($('#layerList'));
+  if (muiReady && muiTab === 'layers' && !muiPicking) muiBuild();
+  $('#layersHint').hidden = state.layers.length < 2;
+}
+
+// --- Lista de camadas com arrastar pelo ≡ ---
+
+const ICON_HANDLE = '<svg viewBox="0 0 24 24"><path d="M5 8h14M5 12h14M5 16h14"/></svg>';
+const ICON_EYE = '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICON_EYE_OFF = '<svg viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 4.4-1"/></svg>';
+const ICON_DEL = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+
+function renderLayerList(host, { onSelect } = {}) {
+  host.replaceChildren();
+  if (!state.layers.length) {
+    const p = document.createElement('p');
+    p.className = 'hint layer-empty';
+    p.textContent = state.loaded ? 'Nenhum efeito aplicado. Toque em “Adicionar” para começar.' : 'Abra uma foto para adicionar efeitos.';
+    host.append(p);
+    return;
+  }
+  const n = state.layers.length;
+  // A lista mostra a camada de cima primeiro, como no Photoshop.
+  for (let vi = 0; vi < n; vi++) {
+    const L = state.layers[n - 1 - vi];
+    const row = document.createElement('div');
+    row.className = 'layer-row' + (L === state.selected ? ' selected' : '') + (L.visible ? '' : ' off');
+    row.setAttribute('role', 'listitem');
+    row.innerHTML = `<span class="layer-handle" title="Arraste para mudar a ordem" aria-label="Mover">${ICON_HANDLE}</span>`
+      + `<button class="layer-name" type="button"></button>`
+      + `<button class="layer-eye" type="button" title="${L.visible ? 'Ocultar' : 'Mostrar'}" aria-label="${L.visible ? 'Ocultar' : 'Mostrar'} efeito">${L.visible ? ICON_EYE : ICON_EYE_OFF}</button>`
+      + `<button class="layer-del" type="button" title="Remover efeito" aria-label="Remover efeito">${ICON_DEL}</button>`;
+    row.querySelector('.layer-name').textContent = L.effect.name;
+    row.querySelector('.layer-name').addEventListener('click', () => { selectLayer(L); onSelect?.(L); });
+    row.querySelector('.layer-eye').addEventListener('click', () => toggleVisible(L));
+    row.querySelector('.layer-del').addEventListener('click', () => removeLayerAt(state.layers.indexOf(L)));
+    attachLayerDrag(row.querySelector('.layer-handle'), row, host, vi);
+    host.append(row);
+  }
+}
+
+/** Arrastar pelo ≡ para cima/baixo reordena (funciona com mouse e dedo). */
+function attachLayerDrag(handle, row, host, viewIndex) {
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rows = [...host.querySelectorAll('.layer-row')];
+    const h = row.getBoundingClientRect().height + 4;
+    const y0 = e.clientY;
+    let target = viewIndex;
+    try { handle.setPointerCapture(e.pointerId); } catch { /* ignora */ }
+    row.classList.add('dragging');
+    const move = (ev) => {
+      const dy = ev.clientY - y0;
+      row.style.transform = `translateY(${dy}px)`;
+      target = clamp(Math.round(viewIndex + dy / h), 0, rows.length - 1);
+      rows.forEach((r, i) => {
+        if (r === row) return;
+        let shift = 0;
+        if (target > viewIndex && i > viewIndex && i <= target) shift = -h;
+        if (target < viewIndex && i < viewIndex && i >= target) shift = h;
+        r.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    };
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      handle.removeEventListener('pointercancel', up);
+      rows.forEach((r) => { r.style.transform = ''; });
+      row.classList.remove('dragging');
+      const n = state.layers.length;
+      if (target !== viewIndex) moveLayer(n - 1 - viewIndex, n - 1 - target);
+      else layersChanged();
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+    handle.addEventListener('pointercancel', up);
+  });
+}
+
+// --- Menu "Adicionar efeito" com grupos ---
+
+function buildFxPicker(onPick) {
+  const wrap = document.createElement('div');
+  wrap.className = 'fx-picker';
+  for (const g of effectsByGroup()) {
+    const sec = document.createElement('div');
+    sec.className = 'fx-group';
+    const title = document.createElement('div');
+    title.className = 'fx-group-title';
+    title.textContent = g.name;
+    const grid = document.createElement('div');
+    grid.className = 'fx-grid';
+    if (!g.items.length) {
+      const soon = document.createElement('span');
+      soon.className = 'fx-soon';
+      soon.textContent = 'Em breve';
+      grid.append(soon);
+    }
+    for (const fx of g.items) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'fx-item';
+      b.textContent = fx.name;
+      b.addEventListener('click', () => onPick(fx));
+      grid.append(b);
+    }
+    sec.append(title, grid);
+    wrap.append(sec);
+  }
+  return wrap;
+}
+
+const fxPopover = $('#fxPopover');
+const btnAddFx = $('#btnAddFx');
+
+function closeFxPopover() {
+  fxPopover.hidden = true;
+  btnAddFx.setAttribute('aria-expanded', 'false');
+}
+btnAddFx.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!fxPopover.hidden) return closeFxPopover();
+  if (!state.loaded) { toast('Abra uma foto primeiro.'); return; }
+  fxPopover.replaceChildren(buildFxPicker((fx) => { closeFxPopover(); addLayer(fx); }));
+  fxPopover.hidden = false;
+  btnAddFx.setAttribute('aria-expanded', 'true');
+});
+document.addEventListener('pointerdown', (e) => {
+  if (!fxPopover.hidden && !fxPopover.contains(e.target) && e.target !== btnAddFx) closeFxPopover();
+});
+
+// ---------------------------------------------------------------------------
+// Painel: ajustes do efeito selecionado
+// ---------------------------------------------------------------------------
+
+const isOriginParam = (id) => id === 'ox' || id === 'oy';
+const unitOf = (def) => def.unit;
 const openGroups = new Set();
 
-function buildEffectControls() {
+function paramRange(def) {
+  return def.range && state.loaded ? def.range(renderer.src.w, renderer.src.h) : [def.min, def.max];
+}
+
+/** Ajusta um parâmetro da camada selecionada (ou de `L`). */
+function setParam(id, v, live = false, syncUI = false, L = state.selected) {
+  if (!L) return;
+  L.params[id] = v;
+  L.fxDirty = true;
+  state.live = live;
+  if (L === state.selected) {
+    if (syncUI) settingsControls[id]?.set(v);
+    // Parâmetros que mostram/ocultam outros (ex.: tipo de ruído) remontam os controles.
+    if (L.effect.params.some((d) => d.showIf) && L.effect.params.find((d) => d.id === id)?.type === 'select') {
+      buildSettings();
+      muiBuild();
+    } else muiRefresh();
+  }
+  dirtyFrom(state.layers.indexOf(L));
+}
+
+function setFxOpacity(v, L = state.selected) {
+  if (!L) return;
+  L.fxOpacity = v;
+  L.mixDirty = true;
+  if (L === state.selected) { settingsControls.__fxOpacity?.set(v); muiRefresh(); }
+  requestRender();
+}
+
+function setMaskOpacity(v, L = state.selected) {
+  if (!L) return;
+  L.maskOpacity = clamp(v, 0, 100);
+  L.mixDirty = true;
+  if (L === state.selected) { maskOpacityControl.set(L.maskOpacity); muiRefresh(); }
+  requestRender();
+}
+
+function onParamInput(def, v, live) {
+  if (isOriginParam(def.id)) beginOriginEdit();
+  setParam(def.id, v, live);
+  if (isOriginParam(def.id) && !live) commitOriginEdit();
+}
+
+function buildSettings() {
   const host = $('#effectParams');
   host.replaceChildren();
-  paramControls = {};
-  const groups = new Map();
-  if (!state.effect.params.some((d) => d.id === 'direction')) host.append(fxOpacityControl.el);
-  for (const def of state.effect.params) {
-    const onInput = (v, live) => {
-      if (isOriginParam(def.id)) beginOriginEdit();
-      setParam(def.id, v, live);
-      if (isOriginParam(def.id) && !live) commitOriginEdit();
-    };
-    let c;
-    if (def.type === 'select') {
-      c = select({ ...def, value: state.params[def.id], onInput });
-    } else {
-      // Faixas que dependem do tamanho da foto (ex.: ponto de origem em px a partir do centro).
-      const [min, max] = def.range && state.loaded ? def.range(renderer.src.w, renderer.src.h) : [def.min, def.max];
-      c = slider({ ...def, min, max, value: state.params[def.id], onInput });
-    }
-    paramControls[def.id] = c;
+  settingsControls = {};
+  const L = state.selected;
+  $('#settingsEmpty').hidden = !!L;
+  $('#btnResetParams').hidden = !L;
+  $('#settingsTitle').textContent = L ? L.effect.name : 'Ajustes do efeito';
+  $('#maskCard').classList.toggle('disabled', !L);
+  if (L) maskOpacityControl.set(L.maskOpacity);
+  if (!L) return;
 
+  const opacity = slider({
+    label: 'Opacidade do efeito', min: 0, max: 100, value: L.fxOpacity, default: 100, unit: '%',
+    tip: 'Intensidade geral do efeito sobre o que está abaixo dele, como a opacidade de uma camada.',
+    onInput: (v) => setFxOpacity(v),
+  });
+  settingsControls.__fxOpacity = opacity;
+  const defs = visibleParams(L.effect, L.params);
+  if (!defs.some((d) => d.id === 'direction')) host.append(opacity.el);
+  const groups = new Map();
+  for (const def of defs) {
+    const onInput = (v, live) => onParamInput(def, v, live);
+    let c;
+    if (def.type === 'select') c = select({ ...def, value: L.params[def.id], onInput });
+    else {
+      const [min, max] = paramRange(def);
+      c = slider({ ...def, min, max, value: L.params[def.id], onInput });
+    }
+    settingsControls[def.id] = c;
     if (!def.group) {
       host.append(c.el);
       // A opacidade do efeito vem logo depois da direção.
-      if (def.id === 'direction') host.append(fxOpacityControl.el);
+      if (def.id === 'direction') host.append(opacity.el);
       continue;
     }
     let g = groups.get(def.group);
@@ -167,9 +420,7 @@ function buildEffectControls() {
       const details = document.createElement('details');
       details.className = 'group';
       details.open = openGroups.has(def.group);
-      details.addEventListener('toggle', () => {
-        if (details.open) openGroups.add(def.group); else openGroups.delete(def.group);
-      });
+      details.addEventListener('toggle', () => { if (details.open) openGroups.add(def.group); else openGroups.delete(def.group); });
       const summary = document.createElement('summary');
       summary.textContent = def.group;
       g = document.createElement('div');
@@ -182,47 +433,38 @@ function buildEffectControls() {
   }
 }
 
-// ---- Ponto de origem no histórico (Ctrl+Z / seta de voltar) ----
-// Uma "edição de origem" começa no primeiro movimento (arrastar na foto, tocar, slider) e
-// vira uma entrada de desfazer quando termina, se a posição mudou.
-let originEdit = null;
-
-function beginOriginEdit() {
-  if (!originEdit && state.effect.originParams) originEdit = { ox: state.params.ox, oy: state.params.oy };
-}
-
-function commitOriginEdit() {
-  const before = originEdit;
-  originEdit = null;
-  if (!before) return;
-  const after = { ox: state.params.ox, oy: state.params.oy };
-  if (before.ox === after.ox && before.oy === after.oy) return;
-  const apply = (o) => { for (const k in o) setParam(k, o[k], false, true); };
-  history.push({ undo: () => apply(before), redo: () => apply(after) });
-  updateHistoryButtons();
-}
-
-const isOriginParam = (id) => id === 'ox' || id === 'oy';
-
-function setParam(id, v, live = false, syncUI = false) {
-  state.params[id] = v;
-  state.live = live;
-  if (syncUI) paramControls[id]?.set(v);
-  muiRefresh();
-  requestRender(true);
-}
-
 $('#btnResetParams').addEventListener('click', resetEffect);
 
 function resetEffect() {
-  state.params = defaultParams(state.effect);
-  setFxOpacity(100);
-  buildEffectControls();
+  const L = state.selected;
+  if (!L) return;
+  L.params = defaultParams(L.effect);
+  L.fxOpacity = 100;
+  L.fxDirty = true;
+  buildSettings();
   muiBuild();
-  requestRender(true);
+  dirtyFrom(state.layers.indexOf(L));
 }
 
-buildEffectControls();
+// ---- Ponto de origem no histórico (Ctrl+Z / seta de voltar) ----
+
+function beginOriginEdit() {
+  const L = state.selected;
+  if (!originEdit && L?.effect.originParams) originEdit = { layer: L, ox: L.params.ox, oy: L.params.oy };
+}
+
+function commitOriginEdit() {
+  const e = originEdit;
+  originEdit = null;
+  if (!e) return;
+  const L = e.layer;
+  const before = { ox: e.ox, oy: e.oy };
+  const after = { ox: L.params.ox, oy: L.params.oy };
+  if (before.ox === after.ox && before.oy === after.oy) return;
+  const apply = (o) => { for (const k in o) setParam(k, o[k], false, true, L); };
+  history.push({ undo: () => apply(before), redo: () => apply(after) });
+  updateHistoryButtons();
+}
 
 // ---------------------------------------------------------------------------
 // Painel: máscara / pincel
@@ -242,8 +484,8 @@ const brushControls = {
 $('#brushParams').append(...Object.values(brushControls).map((c) => c.el));
 
 const maskOpacityControl = slider({
-  label: 'Opacidade da máscara', min: 0, max: 100, value: state.maskOpacity, default: 100, unit: '%',
-  tip: 'Quanto a área marcada protege a foto do efeito. 100% = nenhum efeito na área marcada. Atalho: Shift + 1…0',
+  label: 'Opacidade da máscara', min: 0, max: 100, value: 100, default: 100, unit: '%',
+  tip: 'Quanto a área marcada protege a foto deste efeito. 100% = nenhum efeito na área marcada. Atalho: Shift + 1…0',
   onInput: (v) => setMaskOpacity(v),
 });
 $('#maskParams').append(maskOpacityControl.el);
@@ -258,21 +500,23 @@ function setBrush(key, v) {
   requestRender();
 }
 
-function setMaskOpacity(v) {
-  maskOpacityControl.set(v);
-  state.maskOpacity = maskOpacityControl.get();
-  muiRefresh();
+$('#maskInvert').addEventListener('click', () => maskOp((m) => masks.invert(m)));
+$('#maskClear').addEventListener('click', () => maskOp((m) => masks.fill(m, 0)));
+
+/** Operação na máscara da camada selecionada, registrada no histórico. */
+function maskOp(fn) {
+  const L = state.selected;
+  if (!state.loaded || !L) { toast('Selecione um efeito para editar a máscara.'); return; }
+  pushMaskEntry(L, fn(L.mask));
+  L.mixDirty = true;
   requestRender();
 }
 
-$('#maskInvert').addEventListener('click', () => maskOp(() => mask.invert()));
-$('#maskClear').addEventListener('click', () => maskOp(() => mask.fill(0)));
-
-function maskOp(fn) {
-  if (!state.loaded) return;
-  history.push(fn());
+function pushMaskEntry(L, r) {
+  if (!r) return;
+  const write = (data) => { if (L.destroyed) return; masks.writeRect(L.mask, r.rect, data); L.mixDirty = true; requestRender(); };
+  history.push({ undo: () => write(r.before), redo: () => write(r.after), bytes: r.before.length + r.after.length });
   updateHistoryButtons();
-  requestRender();
 }
 
 const showMaskInput = $('#showMask');
@@ -297,7 +541,7 @@ const PREVIEW_OPTIONS = [
 ];
 const previewControl = select({
   label: 'Resolução da prévia',
-  tip: 'Resolução usada para calcular o efeito na tela. A exportação sempre usa a resolução total.',
+  tip: 'Resolução usada para calcular os efeitos na tela. A exportação sempre usa a resolução total.',
   options: PREVIEW_OPTIONS,
   value: String(state.previewLong),
   onInput: (v) => setPreviewLong(v),
@@ -308,7 +552,7 @@ function setPreviewLong(v) {
   previewControl.set(String(v));
   state.previewLong = Number(v);
   muiRefresh();
-  requestRender(true);
+  dirtyFrom(0);
 }
 
 // ---------------------------------------------------------------------------
@@ -331,27 +575,29 @@ for (const b of document.querySelectorAll('[data-tool]')) b.addEventListener('cl
 setTool('center');
 
 const isBrush = () => state.tool === 'add' || state.tool === 'sub';
+const selectedOrigin = () => {
+  const L = state.selected;
+  return L && L.visible && L.effect.originParams ? L : null;
+};
 
 // ---------------------------------------------------------------------------
-// Overlay (alvo do centro, anéis da área nítida) e cursor do pincel
+// Overlay (alvo do ponto de origem, anéis da área nítida) e cursor do pincel
 // ---------------------------------------------------------------------------
 
 const ovCenter = $('#ovCenter');
 const ovRings = $('#ovRings');
 
 function updateOverlay() {
-  // Efeitos sem ponto de origem: arrastar move a vista, então o cursor vira a "mão".
-  stage.classList.toggle('no-origin', !state.effect.originParams);
-  overlay.style.display = state.loaded && state.effect.overlay ? '' : 'none';
-  if (!state.loaded || !state.effect.overlay) return;
-  const o = state.effect.overlay(state.params, renderer.src.w, renderer.src.h);
+  const L = selectedOrigin();
+  // Sem ponto de origem: arrastar move a vista, então o cursor vira a "mão".
+  stage.classList.toggle('no-origin', !L);
+  overlay.style.display = state.loaded && L && L.effect.overlay ? '' : 'none';
+  if (!state.loaded || !L || !L.effect.overlay) return;
+  const o = L.effect.overlay(L.params, renderer.src.w, renderer.src.h);
   const [sx, sy] = view.toScreen(o.center[0], o.center[1]);
   ovCenter.setAttribute('transform', `translate(${sx.toFixed(1)} ${sy.toFixed(1)})`);
   const want = o.rings.length * 2;
-  while (ovRings.childNodes.length < want) {
-    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    ovRings.append(c);
-  }
+  while (ovRings.childNodes.length < want) ovRings.append(document.createElementNS('http://www.w3.org/2000/svg', 'circle'));
   while (ovRings.childNodes.length > want) ovRings.lastChild.remove();
   o.rings.forEach((r, i) => {
     const dark = ovRings.childNodes[i * 2], light = ovRings.childNodes[i * 2 + 1];
@@ -404,7 +650,7 @@ function falloffGradient(h) {
 }
 
 // ---------------------------------------------------------------------------
-// Interação no palco: centro, pincel, mover, zoom, pinça
+// Interação no palco: ponto de origem, pincel, mover, zoom, pinça
 // ---------------------------------------------------------------------------
 
 const pointers = new Map();
@@ -446,7 +692,7 @@ function onPointerDown(e) {
       cancelSingleAction();
       startPinch();
       gestureLock = true;
-      requestRender(true);
+      requestRender();
     }
     return;
   }
@@ -490,9 +736,9 @@ function cancelSingleAction() {
   if (!drag) return;
   if (drag.type === 'pending') clearTimeout(drag.timer);
   if (drag.type === 'peek') setCompareHold(false);
-  if (drag.type === 'paint') mask.cancelStroke();
+  if (drag.type === 'paint') { masks.cancelStroke(); strokeLayer = null; state.live = false; dirtyFrom(0); }
   if (drag.type === 'center' && drag.before) {
-    for (const k in drag.before) setParam(k, drag.before[k], false, true);
+    for (const k in drag.before) setParam(k, drag.before[k], false, true, drag.layer);
     originEdit = null;
   }
   if (drag.type === 'pan') setPanning(false);
@@ -501,14 +747,14 @@ function cancelSingleAction() {
 /** Começa a ação da ferramenta atual no ponto p (mover origem, pintar ou, fora da foto, mover a vista). */
 function startAction(p) {
   if (state.tool === 'center') {
-    // Fora da foto, ou em efeitos sem ponto de origem (direcional, gaussiano): move a vista.
-    if (!insideImage(p) || !state.effect.originParams) {
+    const L = selectedOrigin();
+    // Fora da foto, ou sem efeito com ponto de origem selecionado: move a vista.
+    if (!insideImage(p) || !L) {
       drag = { type: 'pan', last: p };
       setPanning(true);
       return;
     }
-    const before = state.effect.originParams ? { ox: state.params.ox, oy: state.params.oy } : null;
-    drag = { type: 'center', before };
+    drag = { type: 'center', layer: L, before: { ox: L.params.ox, oy: L.params.oy } };
     beginOriginEdit();
     moveCenter(p, true);
   } else {
@@ -588,7 +834,7 @@ function endPointer(e) {
   pointers.delete(e.pointerId);
   if (!pointers.size) gestureLock = false;
   if (drag?.type === 'pinch') {
-    if (pointers.size < 2) { drag = null; state.live = false; requestRender(true); }
+    if (pointers.size < 2) { drag = null; state.live = false; requestRender(); }
     return;
   }
   if (!drag) return;
@@ -602,13 +848,11 @@ function endPointer(e) {
     drag = null;
     return;
   }
-  if (drag.type === 'paint') {
-    history.push(mask.endStroke());
-    updateHistoryButtons();
-  } else if (drag.type === 'center') {
+  if (drag.type === 'paint') endPaint();
+  else if (drag.type === 'center') {
     state.live = false;
     commitOriginEdit();
-    requestRender(true);
+    if (drag.layer) dirtyFrom(state.layers.indexOf(drag.layer));
   }
   if (drag.type === 'pan') setPanning(false);
   drag = null;
@@ -619,12 +863,12 @@ function endPointer(e) {
 stage.addEventListener('pointerup', endPointer);
 stage.addEventListener('pointercancel', (e) => {
   // O sistema tomou o gesto: nada do que um dedo começou deve ficar aplicado.
-  if (drag && drag.type !== 'pinch') { cancelSingleAction(); drag = null; requestRender(true); }
+  if (drag && drag.type !== 'pinch') { cancelSingleAction(); drag = null; requestRender(); }
   if (pointers.size > 1) gestureLock = true;
   endPointer(e);
 });
 stage.addEventListener('contextmenu', (e) => { if (state.loaded) e.preventDefault(); });
-stage.addEventListener('pointerleave',() => { lastPointer = null; updateCursor(); });
+stage.addEventListener('pointerleave', () => { lastPointer = null; updateCursor(); });
 
 function setPanning(on) {
   panning = on;
@@ -633,20 +877,38 @@ function setPanning(on) {
 }
 
 function moveCenter(p, live) {
-  if (!state.effect.originParams) return;
+  const L = drag?.layer || selectedOrigin();
+  if (!L) return;
   const [ix, iy] = view.toImage(p[0], p[1]);
-  const o = state.effect.originParams(ix, iy, renderer.src.w, renderer.src.h);
-  for (const k in o) setParam(k, o[k], live, true);
+  const o = L.effect.originParams(ix, iy, renderer.src.w, renderer.src.h);
+  for (const k in o) setParam(k, o[k], live, true, L);
 }
 
 // --- Pincel ---
 
 function beginPaint(p) {
+  const L = state.selected;
+  if (!L) {
+    toast('Adicione ou selecione um efeito para pintar a máscara dele.', 2500);
+    drag = { type: 'pan', last: p };
+    setPanning(true);
+    return;
+  }
   const [ix, iy] = view.toImage(p[0], p[1]);
-  mask.beginStroke(state.tool === 'add' ? ADD : SUBTRACT);
+  strokeLayer = L;
+  state.live = true;
+  masks.beginStroke(state.tool === 'add' ? ADD : SUBTRACT);
   drag = { type: 'paint', x: ix, y: iy, carry: 0 };
   dabAt(ix, iy);
   requestRender();
+}
+
+function endPaint() {
+  const L = strokeLayer;
+  pushMaskEntry(L, masks.endStroke(L?.mask));
+  strokeLayer = null;
+  state.live = false;
+  if (L) { L.mixDirty = true; dirtyFrom(state.layers.indexOf(L) + 1); }
 }
 
 function paintTo(p) {
@@ -668,8 +930,8 @@ function paintTo(p) {
 }
 
 function dabAt(ix, iy) {
-  const k = mask.scale;
-  mask.dab(ix * k, iy * k, (state.brush.size / 2) * k, state.brush.hardness / 100, state.brush.flow / 100);
+  const k = masks.scale;
+  masks.dab(ix * k, iy * k, (state.brush.size / 2) * k, state.brush.hardness / 100, state.brush.flow / 100);
 }
 
 // --- Pinça (dois dedos) ---
@@ -776,7 +1038,7 @@ async function decode(file, opts) {
 }
 
 async function openFile(file) {
-  if (state.loaded && history.canUndo && !confirm('Abrir outra foto? A máscara atual será descartada.')) return;
+  if (state.loaded && history.canUndo && !confirm('Abrir outra foto? As máscaras e o histórico atuais serão descartados (os efeitos continuam).')) return;
   toast('Abrindo ' + file.name + '…', 60000);
   try {
     let bmp = await decode(file);
@@ -792,27 +1054,32 @@ async function openFile(file) {
     }
     renderer.setImage(bmp, w, h);
     bmp.close?.();
-    mask.init(w, h);
     history.clear();
+    masks.init(w, h);
+    // As camadas continuam; máscaras novas (vazias) no tamanho da foto e origem no centro.
+    for (const L of state.layers) {
+      masks.dispose(L.mask);
+      L.mask = masks.create();
+      if ('ox' in L.params) L.params.ox = 0;
+      if ('oy' in L.params) L.params.oy = 0;
+    }
     updateHistoryButtons();
     view.setSize(stage.clientWidth, stage.clientHeight);
     view.setImage(w, h);
 
     state.loaded = true;
-    // Ponto de origem volta ao centro e as faixas dos controles passam a seguir o tamanho da foto.
-    if ('ox' in state.params) state.params.ox = 0;
-    if ('oy' in state.params) state.params.oy = 0;
-    buildEffectControls();
     state.fileName = file.name.replace(/\.[^.]+$/, '') || 'foto';
     $('#dropzone').hidden = true;
     $('#zoombar').hidden = false;
     stage.classList.remove('empty');
     $('#btnExport').disabled = false;
+    buildSettings();
+    layersChanged();
     muiBuild();
-    if (mobileLayout.matches) muiSetTab('effect', true);
-    $('#imgInfo').textContent = `${state.fileName} — ${w} × ${h} px` + (mask.scale < 1 ? ` · máscara ${mask.w} × ${mask.h} px` : '');
+    if (mobileLayout.matches) muiSetTab(state.layers.length ? 'adjust' : 'layers', true);
+    $('#imgInfo').textContent = `${state.fileName} — ${w} × ${h} px` + (masks.scale < 1 ? ` · máscaras ${masks.w} × ${masks.h} px` : '');
     updateZoomLabel();
-    requestRender(true);
+    dirtyFrom(0);
     if (w !== ow) toast(`Foto reduzida de ${ow}×${oh} para ${w}×${h} px (limite da sua placa de vídeo).`, 6000);
     else toast(`${w} × ${h} px`, 1800);
   } catch (err) {
@@ -877,6 +1144,7 @@ window.addEventListener('keydown', (e) => {
     else if (k === '-') { e.preventDefault(); zoomCentered(view.step(-1)); }
     return;
   }
+  if (e.key === 'Escape') closeFxPopover();
   // Impede que o Alt sozinho ative o menu do navegador enquanto se usa os atalhos do pincel.
   if (e.key === 'Alt' && state.loaded) { e.preventDefault(); return; }
   if (isTyping(e) || e.altKey) return;
@@ -986,10 +1254,8 @@ $('#expGo').addEventListener('click', async (e) => {
   await new Promise((r) => setTimeout(r, 30));
   try {
     const type = expFormat.value;
-    const img = renderer.exportImage(state.effect, state.params, mask, {
-      maskOpacity: state.maskOpacity / 100, fxOpacity: state.fxOpacity / 100, lowMemory: coarse,
-    });
-    requestRender(true); // os buffers da prévia continuam válidos, mas o estado do GL mudou
+    const img = renderer.exportStack(state.layers, { lowMemory: coarse });
+    requestRender();
     const c = document.createElement('canvas');
     c.width = img.width;
     c.height = img.height;
@@ -1021,40 +1287,35 @@ $('#expGo').addEventListener('click', async (e) => {
 
 // ---------------------------------------------------------------------------
 // Celular: interface no estilo Lightroom mobile
-//   abas embaixo → painel translúcido com todos os ajustes da aba empilhados
-//   (arrasta-se direto no slider, sem tocar antes para escolher). Arrastar a alça ou as
-//   abas para baixo recolhe o painel; para cima abre.
+//   abas Efeitos (camadas) / Ajustes (do efeito selecionado) / Máscara; painel translúcido com
+//   os controles empilhados. Arrastar as abas para baixo recolhe o painel; para cima abre.
 // ---------------------------------------------------------------------------
 
 const mui = $('#mui');
 const muiList = $('#muiList');
-let muiTab = 'effect';
+let muiTab = 'layers';
 let muiOpen = false;
-let muiRows = []; // { it, ctl?, seg?, btn? }
+let muiPicking = false; // mostrando o menu "Adicionar efeito"
+let muiRows = [];       // { it, ctl?, seg?, btn? }
 const muiOpenGroups = new Set();
 
-function muiEffectItems() {
-  const items = [
-    { key: 'effect', label: 'Efeito', type: 'select', get: () => state.effect.id, set: (v) => switchEffect(v),
-      options: effects.map((f) => ({ value: f.id, label: f.name, short: f.name.replace(/^Desfoque (de )?/, '').replace(/^./, (c) => c.toUpperCase()) })) },
-  ];
+const unitText = (u) => (u === '%' || u === '°' ? u : u ? ' ' + u : '');
+
+function muiAdjustItems() {
+  const L = state.selected;
+  if (!L) return [];
+  const items = [];
   const fxOpacity = { key: 'fxOpacity', label: 'Opacidade', type: 'range', min: 0, max: 100, step: 1, unit: '%', default: 100,
-    get: () => state.fxOpacity, set: (v) => setFxOpacity(v) };
-  if (!state.effect.params.some((d) => d.id === 'direction')) items.push(fxOpacity);
-  for (const def of state.effect.params) {
-    const [min, max] = def.range && state.loaded ? def.range(renderer.src.w, renderer.src.h) : [def.min, def.max];
+    get: () => L.fxOpacity, set: (v) => setFxOpacity(v) };
+  const defs = visibleParams(L.effect, L.params);
+  if (!defs.some((d) => d.id === 'direction')) items.push(fxOpacity);
+  for (const def of defs) {
+    const [min, max] = paramRange(def);
     items.push({
       key: def.id, label: def.group ? def.label : (def.chip || def.label), group: def.group,
-      type: def.type, options: def.options, min, max, step: def.step,
-      unit: def.unit === '%' || def.unit === '°' ? def.unit : (def.unit ? ' ' + def.unit : ''),
-      default: def.default, get: () => state.params[def.id],
-      set: (v, live) => {
-        if (isOriginParam(def.id)) beginOriginEdit();
-        setParam(def.id, v, live, true);
-        if (isOriginParam(def.id) && !live) commitOriginEdit();
-      },
+      type: def.type, options: def.options, min, max, step: def.step, unit: unitText(unitOf(def)),
+      default: def.default, get: () => L.params[def.id], set: (v, live) => onParamInput(def, v, live),
     });
-    // A opacidade do efeito vem logo depois da direção.
     if (def.id === 'direction') items.push(fxOpacity);
   }
   items.push({ key: 'preview', label: 'Prévia', type: 'select', options: PREVIEW_OPTIONS,
@@ -1066,6 +1327,9 @@ function muiMaskItems() {
   return [
     { key: 'mode', label: 'Pincel', type: 'select', get: () => lastBrushTool, set: (v) => setTool(v),
       options: [{ value: 'add', label: '+ Marcar' }, { value: 'sub', label: '− Desmarcar' }] },
+    { key: 'show', label: 'Ver área', type: 'toggle', get: () => state.showMask, set: (v) => setShowMask(v) },
+    { key: 'invert', label: 'Inverter', type: 'action', run: () => { maskOp((m) => masks.invert(m)); toast('Máscara invertida', 1200); } },
+    { key: 'clear', label: 'Limpar', type: 'action', run: () => { maskOp((m) => masks.fill(m, 0)); toast('Máscara limpa', 1200); } },
     { key: 'size', label: 'Tamanho', type: 'range', min: 1, max: 3000, step: 1, unit: ' px', default: 250, log: true,
       get: () => state.brush.size, set: (v) => setBrush('size', v) },
     { key: 'hardness', label: 'Dureza', type: 'range', min: 0, max: 100, step: 1, unit: '%', default: 30,
@@ -1073,10 +1337,7 @@ function muiMaskItems() {
     { key: 'flow', label: 'Fluxo', type: 'range', min: 1, max: 100, step: 1, unit: '%', default: 100,
       get: () => state.brush.flow, set: (v) => setBrush('flow', v) },
     { key: 'maskOpacity', label: 'Opacidade da máscara', type: 'range', min: 0, max: 100, step: 1, unit: '%', default: 100,
-      get: () => state.maskOpacity, set: (v) => setMaskOpacity(v) },
-    { key: 'show', label: 'Ver área', type: 'toggle', get: () => state.showMask, set: (v) => setShowMask(v) },
-    { key: 'invert', label: 'Inverter', type: 'action', run: () => { maskOp(() => mask.invert()); toast('Máscara invertida', 1200); } },
-    { key: 'clear', label: 'Limpar', type: 'action', run: () => { maskOp(() => mask.fill(0)); toast('Máscara limpa', 1200); } },
+      get: () => state.selected?.maskOpacity ?? 100, set: (v) => setMaskOpacity(v) },
   ];
 }
 
@@ -1103,12 +1364,89 @@ function muiSegRow(it) {
   return { row, seg };
 }
 
-/** Monta a lista empilhada da aba (troca de aba, de efeito ou nova foto). */
+function muiMessage(text, buttonLabel, onClick) {
+  const box = document.createElement('div');
+  box.className = 'mui-empty';
+  const p = document.createElement('p');
+  p.textContent = text;
+  box.append(p);
+  if (buttonLabel) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn primary';
+    b.textContent = buttonLabel;
+    b.addEventListener('click', onClick);
+    box.append(b);
+  }
+  return box;
+}
+
+function muiOpenPicker() {
+  if (!state.loaded) { toast('Abra uma foto primeiro.'); return; }
+  muiPicking = true;
+  muiSetTab('layers', true);
+  muiBuild();
+}
+
+/** Monta o conteúdo da aba (troca de aba, de camada ou nova foto). */
 function muiBuild() {
   muiReady = true;
-  const items = muiTab === 'effect' ? muiEffectItems() : muiMaskItems();
   muiRows = [];
   const frag = document.createDocumentFragment();
+
+  if (muiTab === 'layers') {
+    if (muiPicking) {
+      const head = document.createElement('div');
+      head.className = 'mui-head';
+      head.innerHTML = '<span>Adicionar efeito</span>';
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'link-btn';
+      cancel.textContent = 'Cancelar';
+      cancel.addEventListener('click', () => { muiPicking = false; muiBuild(); });
+      head.append(cancel);
+      frag.append(head, buildFxPicker((fx) => { muiPicking = false; addLayer(fx); muiSetTab('adjust', true); }));
+    } else {
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'btn primary mui-add';
+      add.textContent = '+ Adicionar efeito';
+      add.addEventListener('click', muiOpenPicker);
+      const list = document.createElement('div');
+      list.className = 'layer-list';
+      renderLayerList(list, { onSelect: () => muiSetTab('adjust', true) });
+      frag.append(add, list);
+    }
+    muiList.replaceChildren(frag);
+    return;
+  }
+
+  if (muiTab === 'adjust' && !state.selected) {
+    muiList.replaceChildren(muiMessage(
+      state.layers.length ? 'Selecione um efeito na aba Efeitos para ajustar.' : 'Nenhum efeito aplicado ainda.',
+      '+ Adicionar efeito', muiOpenPicker));
+    return;
+  }
+  if (muiTab === 'mask' && !state.selected) {
+    muiList.replaceChildren(muiMessage('A máscara pertence a um efeito. Adicione ou selecione um efeito primeiro.', '+ Adicionar efeito', muiOpenPicker));
+    return;
+  }
+
+  if (muiTab === 'adjust') {
+    const title = document.createElement('div');
+    title.className = 'mui-head';
+    title.innerHTML = '<span></span>';
+    title.firstChild.textContent = state.selected.effect.name;
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'link-btn';
+    reset.textContent = 'Redefinir';
+    reset.addEventListener('click', resetEffect);
+    title.append(reset);
+    frag.append(title);
+  }
+
+  const items = muiTab === 'adjust' ? muiAdjustItems() : muiMaskItems();
   const groups = new Map();
   let actions = null;
   for (const it of items) {
@@ -1123,7 +1461,11 @@ function muiBuild() {
       muiRows.push({ it, seg });
       node = row;
     } else {
-      if (!actions) { actions = document.createElement('div'); actions.className = 'mrow-actions'; }
+      if (!actions) {
+        actions = document.createElement('div');
+        actions.className = 'mrow-actions';
+        frag.append(actions);
+      }
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'mbtn' + (it.type === 'toggle' ? ' toggle' : '');
@@ -1152,7 +1494,6 @@ function muiBuild() {
       frag.append(node);
     }
   }
-  if (actions) frag.insertBefore(actions, frag.children[1] || null); // ações logo abaixo do seletor do pincel
   muiList.replaceChildren(frag);
   muiRefresh();
 }
@@ -1183,7 +1524,8 @@ function muiSetTab(tab, forceOpen = false) {
     const changed = tab !== muiTab;
     muiTab = tab;
     muiOpen = true;
-    if (changed) { muiBuild(); muiList.scrollTop = 0; }
+    if (tab !== 'layers') muiPicking = false;
+    if (changed || forceOpen) { muiBuild(); muiList.scrollTop = 0; }
   }
   muiApply();
 }
@@ -1192,7 +1534,7 @@ function muiApply() {
   mui.classList.toggle('collapsed', !muiOpen);
   // Painel recolhido: nenhuma aba fica marcada.
   for (const b of mui.querySelectorAll('.mtabs [data-tab]')) b.classList.toggle('active', muiOpen && b.dataset.tab === muiTab);
-  // No celular a ferramenta segue a aba: Efeito = mover origem, Máscara = pincel.
+  // No celular a ferramenta segue a aba: Máscara = pincel; as outras = mover ponto de origem.
   if (mobileLayout.matches) setTool(muiTab === 'mask' ? lastBrushTool : 'center');
 }
 
@@ -1247,6 +1589,9 @@ mobileLayout.addEventListener('change', () => {
   if (mobileLayout.matches) muiApply();
   updateInsets();
 });
+
+buildSettings();
+layersChanged();
 muiBuild();
 muiApply();
 
@@ -1339,7 +1684,7 @@ function applyUpdate(version) {
 }
 
 $('#btnUpdate').addEventListener('click', () => {
-  if (history.canUndo && !confirm('Atualizar agora? A edição atual será perdida. Exporte antes se quiser guardá-la.')) return;
+  if ((history.canUndo || state.layers.length) && !confirm('Atualizar agora? A edição atual será perdida. Exporte antes se quiser guardá-la.')) return;
   applyUpdate(latestVersion);
 });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
@@ -1388,6 +1733,7 @@ function toggleDiag() {
     `barra de cima: ${rect('.topbar')}`,
     `painel/abas: ${rect('#mui')} · abas ${rect('.mtabs')}`,
     `margem embaixo: ${getComputedStyle($('#mui')).paddingBottom}`,
+    `efeitos: ${state.layers.length}`,
     '',
     'Toque aqui para fechar.',
   ].join('\n');

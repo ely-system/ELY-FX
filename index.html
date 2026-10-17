@@ -116,18 +116,28 @@
     </section>
 
     <aside class="panel" id="panel" data-tab="effect">
-      <section class="card" data-tab="effect">
+      <section class="card" id="layersCard">
         <div class="card-head">
-          <h2>Efeito</h2>
+          <h2>Efeitos</h2>
+          <button class="btn small" id="btnAddFx" aria-haspopup="true" aria-expanded="false">+ Adicionar</button>
+        </div>
+        <div class="fx-popover" id="fxPopover" hidden></div>
+        <div class="layer-list" id="layerList" role="list" aria-label="Camadas de efeito"></div>
+        <p class="hint small" id="layersHint">Arraste pelo <b>≡</b> para mudar a ordem. O efeito de cima é aplicado por último.</p>
+      </section>
+
+      <section class="card" id="settingsCard">
+        <div class="card-head">
+          <h2 id="settingsTitle">Ajustes do efeito</h2>
           <button id="btnResetParams" class="link-btn" title="Restaurar valores padrão">Redefinir</button>
         </div>
-        <select id="effectSelect" class="effect-select" aria-label="Efeito"></select>
+        <p class="hint" id="settingsEmpty">Adicione um efeito para ajustar.</p>
         <div id="effectParams" class="controls"></div>
       </section>
 
-      <section class="card" data-tab="mask">
+      <section class="card" id="maskCard">
         <div class="card-head">
-          <h2>Máscara</h2>
+          <h2>Máscara do efeito</h2>
           <label class="switch" title="Mostrar a área marcada em vermelho (M)">
             <input type="checkbox" id="showMask"><span></span> Ver área marcada
           </label>
@@ -145,7 +155,7 @@
         </div>
       </section>
 
-      <section class="card" data-tab="effect">
+      <section class="card">
         <div class="card-head"><h2>Prévia</h2></div>
         <div id="previewParams" class="controls"></div>
         <p class="hint" id="imgInfo">Nenhuma foto aberta.</p>
@@ -182,9 +192,13 @@
         <div class="mui-list" id="muiList"></div>
       </div>
       <nav class="mtabs" aria-label="Seções">
-        <button data-tab="effect" class="active">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M12 4a8 8 0 0 1 8 8M12 20a8 8 0 0 1-8-8"/><path d="M12 7.5a4.5 4.5 0 0 1 4.5 4.5M12 16.5A4.5 4.5 0 0 1 7.5 12"/></svg>
-          <span>Efeito</span>
+        <button data-tab="layers">
+          <svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>
+          <span>Efeitos</span>
+        </button>
+        <button data-tab="adjust">
+          <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+          <span>Ajustes</span>
         </button>
         <button data-tab="mask">
           <svg viewBox="0 0 24 24"><path d="M18.4 3.6a2 2 0 0 1 2.8 2.8L12 15.6 8.4 12z"/><path d="M8.4 12C5.5 12 4 14 4 16.5c0 1.6-.8 2.8-2 3.5 4.6.7 9-.6 10-4.4"/></svg>

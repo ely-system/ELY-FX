@@ -64,6 +64,7 @@ export function makeOriginBlur({ id, name, mode, maxAmount, directions, amountDe
   return {
     id,
     name,
+    group: 'Desfoques',
     params: [
       { id: 'direction', type: 'select', label: 'Direção', default: directions[0].value,
         options: directions.map(({ value, label, short }) => ({ value, label, short })),
@@ -102,13 +103,13 @@ export function makeOriginBlur({ id, name, mode, maxAmount, directions, amountDe
       return { center: this.origin(p, w, h), rings: r > 0 ? [r, r + featherPx(p, r)] : [] };
     },
 
-    render(r, src, w, h, p, target) {
+    render(r, src, w, h, p, target, img) {
       const q = QUALITY[p.quality] || QUALITY.good;
       const total = (p.amount / 100) * maxAmount;
       if (total <= 0) return src.tex;
 
       const [t0, t1] = dirRange[p.direction] || [-0.5, 0.5];
-      const [cx, cy] = this.origin(p, src.w, src.h);
+      const [cx, cy] = this.origin(p, img.w, img.h);
       const sharpR = (p.sharp / 100) * 0.5 * Math.hypot(w, h);
       const prog = r.program(FS);
 
@@ -117,7 +118,7 @@ export function makeOriginBlur({ id, name, mode, maxAmount, directions, amountDe
       for (let k = 0; k < q.passes; k++) {
         const out = target(k);
         r.pass(prog, out, {
-          uTex: input, uRes: [w, h], uCenter: [cx / src.w, cy / src.h], uMode: mode,
+          uTex: input, uRes: [w, h], uCenter: [cx / img.w, cy / img.h], uMode: mode,
           uAmount: total / Math.pow(q.samples, k), uT0: t0, uT1: t1,
           uSharpR: sharpR, uFeather: featherPx(p, sharpR), uSamples: q.samples, uLod: lod,
         });

@@ -25,6 +25,8 @@ const SHELL = [
   './js/effects/zoomBlur.js',
   './js/effects/directionalBlur.js',
   './js/effects/gaussianBlur.js',
+  './js/effects/noise.js',
+  './js/effects/pixelate.js',
 ];
 
 self.addEventListener('install', (e) => {
