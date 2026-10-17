@@ -41,6 +41,15 @@ Como o ajuste Preto e Branco do Photoshop: **Luminosidade por cor** (vermelhos, 
 magentas — clareia ou escurece cada faixa, sem mexer nas áreas neutras), **Contraste** e **Saturação** geral
 (0% = P&B total; valores maiores devolvem parte da cor mantendo os tons do P&B).
 
+### Duotone
+A luminosidade vira um degradê entre a **Cor das sombras** e a **Cor das luzes** (seletor de cor com hex), com
+**Contraste** e **Equilíbrio** (puxa os meios-tons para uma das cores).
+
+### Dreamy glow
+Aspecto de sonho: uma cópia com desfoque gaussiano (**Raio**) mesclada em **Tela** ou **Clarear**, com
+**Intensidade** de 10% a 80%. Em **Área → Só as luzes**, apenas o que passa do **Limite das luzes** gera o brilho
+difuso (bloom).
+
 ### Ruído / Granulado
 Tipos **RGB**, **Monocromático** e **Tonalizado** (com seletor de cor), quantidade, tamanho do grão
 (grãos maiores ficam suaves, como filme), distribuição uniforme/gaussiana e variação do padrão.
@@ -143,6 +152,8 @@ js/effects/noise.js
 js/effects/pixelate.js
 js/effects/starburst.js
 js/effects/blackWhite.js
+js/effects/duotone.js
+js/effects/dreamyGlow.js
 ```
 
 Para adicionar um efeito novo, crie um módulo em `js/effects/` com `id`, `name`, `params` e `render()` (veja `radialBlur.js` / `radialCommon.js`) e registre-o em `js/effects/index.js`. Os controles do painel são gerados automaticamente a partir de `params`.

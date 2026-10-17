@@ -16,8 +16,14 @@ import { noise } from './noise.js';
 import { pixelate } from './pixelate.js';
 import { starburst } from './starburst.js';
 import { blackWhite } from './blackWhite.js';
+import { duotone } from './duotone.js';
+import { dreamyGlow } from './dreamyGlow.js';
 
-export const effects = [radialBlur, zoomBlur, directionalBlur, gaussianBlur, blackWhite, noise, pixelate, starburst];
+export const effects = [
+  radialBlur, zoomBlur, directionalBlur, gaussianBlur,
+  blackWhite, duotone,
+  noise, pixelate, starburst, dreamyGlow,
+];
 
 export const GROUPS = ['Desfoques', 'Cor', 'Estilização'];
 

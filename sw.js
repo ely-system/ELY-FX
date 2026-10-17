@@ -30,6 +30,8 @@ const SHELL = [
   './js/effects/pixelate.js',
   './js/effects/starburst.js',
   './js/effects/blackWhite.js',
+  './js/effects/duotone.js',
+  './js/effects/dreamyGlow.js',
 ];
 
 self.addEventListener('install', (e) => {
