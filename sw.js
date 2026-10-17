@@ -28,6 +28,7 @@ const SHELL = [
   './js/effects/noise.js',
   './js/effects/pixelate.js',
   './js/effects/starburst.js',
+  './js/effects/blackWhite.js',
 ];
 
 self.addEventListener('install', (e) => {

@@ -15,10 +15,11 @@ import { gaussianBlur } from './gaussianBlur.js';
 import { noise } from './noise.js';
 import { pixelate } from './pixelate.js';
 import { starburst } from './starburst.js';
+import { blackWhite } from './blackWhite.js';
 
-export const effects = [radialBlur, zoomBlur, directionalBlur, gaussianBlur, noise, pixelate, starburst];
+export const effects = [radialBlur, zoomBlur, directionalBlur, gaussianBlur, blackWhite, noise, pixelate, starburst];
 
-export const GROUPS = ['Desfoques', 'Estilização'];
+export const GROUPS = ['Desfoques', 'Cor', 'Estilização'];
 
 export function effectsByGroup() {
   return GROUPS.map((name) => ({ name, items: effects.filter((e) => e.group === name) }));

@@ -336,7 +336,9 @@ document.addEventListener('pointerdown', (e) => {
 
 const isOriginParam = (id) => id === 'ox' || id === 'oy';
 const unitOf = (def) => def.unit;
-const openGroups = new Set();
+// Estado aberto/fechado dos grupos recolhíveis (por nome). Sem escolha do usuário, vale o padrão do efeito.
+const groupOpen = new Map();
+const isGroupOpen = (effect, name) => groupOpen.get(name) ?? !!effect.openGroups?.includes(name);
 
 function paramRange(def) {
   return def.range && state.loaded ? def.range(renderer.src.w, renderer.src.h) : [def.min, def.max];
@@ -427,8 +429,8 @@ function buildSettings() {
     if (!g) {
       const details = document.createElement('details');
       details.className = 'group';
-      details.open = openGroups.has(def.group);
-      details.addEventListener('toggle', () => { if (details.open) openGroups.add(def.group); else openGroups.delete(def.group); });
+      details.open = isGroupOpen(L.effect, def.group);
+      details.addEventListener('toggle', () => groupOpen.set(def.group, details.open));
       const summary = document.createElement('summary');
       summary.textContent = def.group;
       g = document.createElement('div');
@@ -1428,7 +1430,6 @@ let muiTab = 'layers';
 let muiOpen = false;
 let muiPicking = false; // mostrando o menu "Adicionar efeito"
 let muiRows = [];       // { it, ctl?, seg?, btn? }
-const muiOpenGroups = new Set();
 
 const unitText = (u) => (u === '%' || u === '°' ? u : u ? ' ' + u : '');
 
@@ -1628,8 +1629,8 @@ function muiBuild() {
       if (!g) {
         const d = document.createElement('details');
         d.className = 'mgroup';
-        d.open = muiOpenGroups.has(it.group);
-        d.addEventListener('toggle', () => { if (d.open) muiOpenGroups.add(it.group); else muiOpenGroups.delete(it.group); });
+        d.open = state.selected ? isGroupOpen(state.selected.effect, it.group) : false;
+        d.addEventListener('toggle', () => groupOpen.set(it.group, d.open));
         const sum = document.createElement('summary');
         sum.textContent = it.group;
         g = document.createElement('div');
