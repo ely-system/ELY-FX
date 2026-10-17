@@ -52,7 +52,7 @@ difuso (bloom).
 
 ### Ruído / Granulado
 Tipos **RGB**, **Monocromático** e **Tonalizado** (com seletor de cor), quantidade, tamanho do grão
-(grãos maiores ficam suaves, como filme), distribuição uniforme/gaussiana e variação do padrão.
+(o grão engrossa no próprio lugar e fica suave, como filme — sem parecer uma textura ampliada), distribuição uniforme/gaussiana e variação do padrão.
 
 ### Pixelização
 Blocos com a cor média (estilo pixel art), com **tamanho do pixel** e redução de **cores** (até 8 cores).
