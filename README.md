@@ -71,8 +71,7 @@ O site é estático e publicado pelo GitHub Pages pelo fluxo `.github/workflows/
 Antes de publicar, o fluxo roda `.github/stamp_version.py`, que carimba o commit em `js/version.js`
 (`APP_VERSION`), gera `version.json` e acrescenta `?v=<versão>` aos endereços de JS/CSS e ao cache do
 service worker. O app compara a versão **que está rodando** com a publicada ao abrir, ao voltar para a tela,
-ao reconectar e a cada 5 minutos: sem foto aberta ele se atualiza na hora (tela "Atualizando…");
-durante uma edição mostra o aviso **Atualizar agora**. A versão em uso aparece no cartão **Prévia**.
+ao reconectar e a cada 5 minutos; havendo versão nova, mostra um aviso fixo com o botão **Atualizar**. A versão em uso aparece no cartão **Prévia**.
 
 ## Estrutura
 

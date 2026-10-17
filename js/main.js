@@ -1282,12 +1282,11 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 // ---------------------------------------------------------------------------
 // Versão sempre atualizada
 //   A publicação carimba APP_VERSION no código e gera version.json. O app compara a versão
-//   que ESTÁ RODANDO com a publicada: ao abrir, ao voltar para a tela, ao reconectar e a cada
-//   5 minutos. Diferente → sem foto aberta atualiza na hora (tela "Atualizando…");
-//   editando → aviso fixo "Atualizar agora".
+//   que ESTÁ RODANDO com a publicada (ao abrir, ao voltar para a tela, ao reconectar e a cada
+//   5 minutos) e, se houver uma nova, mostra o aviso fixo com o botão "Atualizar".
 // ---------------------------------------------------------------------------
 
-// Remove o ?v= usado para forçar a atualização, deixando o endereço limpo.
+// Remove o ?v= usado na atualização, deixando o endereço limpo.
 if (new URLSearchParams(location.search).has('v')) {
   window.history.replaceState(null, '', location.pathname + location.hash);
 }
@@ -1310,20 +1309,15 @@ async function checkForUpdate() {
   if (APP_VERSION === 'dev' || v.version === APP_VERSION) {
     const d = v.date ? new Date(v.date).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
     $('#appVersion').textContent = `Versão ${APP_VERSION === 'dev' ? 'dev' : v.version}${d ? ' · ' + d : ''}`;
+    $('#updateBar').hidden = true;
     return;
   }
   $('#appVersion').textContent = `Versão ${APP_VERSION} (nova disponível: ${v.version})`;
-  if (!state.loaded) forceUpdate(v.version);
-  else $('#updateBar').hidden = false;
+  $('#updateBar').hidden = false;
 }
 
 /** Recarrega na versão nova com um endereço único, que nenhum cache tem guardado. */
-function forceUpdate(version) {
-  // Proteção contra laço: no máximo 2 tentativas por versão nesta aba.
-  const key = 'elyfx-update-' + version;
-  let tries = 0;
-  try { tries = Number(sessionStorage.getItem(key) || 0); sessionStorage.setItem(key, String(tries + 1)); } catch { /* sem storage */ }
-  if (tries >= 2) { $('#updateBar').hidden = false; return; }
+function applyUpdate(version) {
   $('#updating').hidden = false;
   const go = () => location.replace(location.pathname + '?v=' + encodeURIComponent(version));
   Promise.resolve(swReg?.update()).catch(() => {}).finally(() => setTimeout(go, 150));
@@ -1331,8 +1325,7 @@ function forceUpdate(version) {
 
 $('#btnUpdate').addEventListener('click', () => {
   if (history.canUndo && !confirm('Atualizar agora? A edição atual será perdida. Exporte antes se quiser guardá-la.')) return;
-  try { sessionStorage.removeItem('elyfx-update-' + latestVersion); } catch { /* sem storage */ }
-  forceUpdate(latestVersion);
+  applyUpdate(latestVersion);
 });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
 window.addEventListener('pageshow', (e) => { if (e.persisted) checkForUpdate(); });

@@ -289,7 +289,14 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
 .mui { display: none; }
 
 @media (max-width: 860px) {
-  :root { --glass: rgba(20, 20, 20, .58); --glass-solid: rgba(20, 20, 20, .9); }
+  :root {
+    --glass: rgba(20, 20, 20, .58); --glass-solid: rgba(20, 20, 20, .9);
+    /* Folga embaixo das abas, conforme aparelho e modo de uso:
+       - navegador, ou Android com botões na tela: o sistema já reserva o espaço (área segura 0) → 4px;
+       - app instalado em aparelho com barra de gestos (iPhone ~34px): só o necessário para não
+         encostar no indicador de início (área segura − 20px). */
+    --bottom-gap: max(4px, calc(env(safe-area-inset-bottom, 0px) - 20px));
+  }
   html, body { overscroll-behavior: none; }
   body { display: block; height: 100vh; height: 100dvh; touch-action: manipulation; }
   .m-only { display: block; }
@@ -320,8 +327,8 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
 
   .mui {
     display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
-    padding-bottom: env(safe-area-inset-bottom);
-    background: linear-gradient(to bottom, var(--glass), var(--glass) calc(100% - 44px - env(safe-area-inset-bottom)), var(--glass-solid) 0);
+    padding-bottom: var(--bottom-gap);
+    background: linear-gradient(to bottom, var(--glass), var(--glass) calc(100% - 44px - var(--bottom-gap)), var(--glass-solid) 0);
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
     border-top: 1px solid rgba(255,255,255,.06);
   }
@@ -408,7 +415,7 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   /* exportação como painel inferior */
   .dialog {
     width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 16px 16px 0 0; border-width: 1px 0 0;
-    padding: 20px 16px calc(16px + env(safe-area-inset-bottom));
+    padding: 20px 16px calc(12px + var(--bottom-gap));
   }
   .dialog-actions .btn { height: 46px; flex: 1; }
   .dialog-actions.stacked .btn { flex: none; }
