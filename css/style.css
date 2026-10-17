@@ -385,7 +385,12 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   .mrow { padding: 8px 0 6px; }
   .mrow-label { font-size: 14px; color: #e9e9e9; margin-bottom: 6px; }
   .mrow-seg { display: flex; gap: 6px; }
-  .mrow-seg.grid { display: grid; grid-template-columns: 1fr 1fr; }
+  .mrow-seg.scroll {
+    position: relative; overflow-x: auto; scrollbar-width: none; touch-action: pan-x pan-y;
+    margin: 0 -23px; padding: 0 23px; scroll-padding: 0 23px; overscroll-behavior-x: contain;
+  }
+  .mrow-seg.scroll::-webkit-scrollbar { display: none; }
+  .mrow-seg.scroll button { flex: 0 0 auto; padding: 0 18px; }
   .mrow-seg button, .mbtn {
     flex: 1 1 0; min-width: 0; height: 36px; padding: 0 8px; border-radius: 9px; font-size: 14px; white-space: nowrap;
     border: 1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.3); color: var(--text); cursor: pointer;

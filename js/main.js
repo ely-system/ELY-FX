@@ -1088,7 +1088,7 @@ function muiSegRow(it) {
   label.textContent = it.label;
   const seg = document.createElement('div');
   const long = it.options.length > 3 && it.options.some((o) => (o.short || o.label).length > 7);
-  seg.className = 'mrow-seg' + (long ? ' grid' : '');
+  seg.className = 'mrow-seg' + (long ? ' scroll' : ''); // muitas opções longas: rolagem horizontal
   seg.setAttribute('role', 'group');
   seg.setAttribute('aria-label', it.label);
   for (const o of it.options) {
@@ -1162,7 +1162,16 @@ function muiRefresh() {
   if (!muiReady) return;
   for (const r of muiRows) {
     if (r.ctl) r.ctl.set(r.it.get());
-    if (r.seg) for (const b of r.seg.children) b.classList.toggle('active', b.dataset.value === String(r.it.get()));
+    if (r.seg) {
+      for (const b of r.seg.children) b.classList.toggle('active', b.dataset.value === String(r.it.get()));
+      // Na rolagem horizontal, mantém a opção escolhida visível.
+      if (r.seg.classList.contains('scroll')) {
+        const a = r.seg.querySelector('.active');
+        if (a && (a.offsetLeft < r.seg.scrollLeft || a.offsetLeft + a.offsetWidth > r.seg.scrollLeft + r.seg.clientWidth)) {
+          r.seg.scrollTo({ left: a.offsetLeft - 8, behavior: 'smooth' });
+        }
+      }
+    }
     if (r.btn && r.it.type === 'toggle') r.btn.classList.toggle('on', !!r.it.get());
   }
 }
