@@ -27,6 +27,7 @@ const SHELL = [
   './js/effects/gaussianBlur.js',
   './js/effects/noise.js',
   './js/effects/pixelate.js',
+  './js/effects/starburst.js',
 ];
 
 self.addEventListener('install', (e) => {

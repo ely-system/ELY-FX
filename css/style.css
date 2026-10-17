@@ -103,6 +103,11 @@ svg { display: block; }
 #overlay .ring-light { stroke: rgba(255,255,255,.85); stroke-width: 1; stroke-dasharray: 5 5; }
 #overlay .ring-light.solid { stroke-dasharray: none; stroke: rgba(255,255,255,.5); }
 #overlay.dim #ovCenter { opacity: .35; }
+#overlay .pt-dark { fill: none; stroke: rgba(0,0,0,.6); stroke-width: 3; }
+#overlay .pt-light { fill: rgba(255,255,255,.08); stroke: #fff; stroke-width: 1.2; }
+#overlay .pt-dot { fill: #fff; }
+#overlay g.active .pt-light { stroke: var(--accent); stroke-width: 2; }
+#overlay.dim #ovPoints { opacity: .35; }
 #overlay.dim #ovRings { opacity: 0; }
 
 .stage.tool-center { cursor: crosshair; }
@@ -472,6 +477,7 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   .mui-list .fx-group-title { color: #cfcfcf; }
   .mui-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 8px; text-align: center; color: #d0d0d0; font-size: 14px; }
   .mui-empty p { margin: 0; }
+  .mui-hint { margin: 0 0 6px; font-size: 13px; color: #cfcfcf; }
   .mtabs button {
     height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
     background: none; border: 0; color: var(--muted); font-size: 10.5px; cursor: pointer; -webkit-tap-highlight-color: transparent;

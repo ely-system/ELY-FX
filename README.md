@@ -35,6 +35,13 @@ Tipos **RGB**, **Monocromático** e **Tonalizado** (com matiz e saturação da c
 ### Pixelização
 Blocos com a cor média (estilo pixel art), com **tamanho do pixel** e redução de **cores** (até 8 cores).
 
+### Raios de luz (estrela)
+Pontos de luz no estilo filtro estrela (cross screen). **Clique ou toque na foto** para criar um ponto; arraste para
+mover; arraste para fora da foto (ou botão direito no computador) para remover. Todos os pontos compartilham
+**Pontas**, **Rotação** (gira todos juntos), **Tamanho dos raios**, **Tamanho do centro**, **Espessura** e
+**Intensidade**. **Variação** deixa cada raio com comprimento, brilho e ângulo próprios, e **Falhas** interrompe
+os raios em pontos diferentes; **Aleatoriedade** sorteia outro padrão. A luz entra em modo Tela (screen).
+
 Controles dos desfoques radial e de zoom:
 
 - **Direção:** nos dois sentidos, ou rastro só para um lado (horário / anti-horário; para fora / para dentro).
@@ -117,6 +124,7 @@ js/effects/directionalBlur.js
 js/effects/gaussianBlur.js
 js/effects/noise.js
 js/effects/pixelate.js
+js/effects/starburst.js
 ```
 
 Para adicionar um efeito novo, crie um módulo em `js/effects/` com `id`, `name`, `params` e `render()` (veja `radialBlur.js` / `radialCommon.js`) e registre-o em `js/effects/index.js`. Os controles do painel são gerados automaticamente a partir de `params`.

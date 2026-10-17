@@ -80,6 +80,7 @@
       <canvas id="glcanvas"></canvas>
       <svg id="overlay" aria-hidden="true">
         <g id="ovRings" fill="none"></g>
+        <g id="ovPoints"></g>
         <g id="ovCenter">
           <circle r="11" class="ov-dark"/>
           <circle r="11" class="ov-light"/>
@@ -132,7 +133,9 @@
           <button id="btnResetParams" class="link-btn" title="Restaurar valores padrão">Redefinir</button>
         </div>
         <p class="hint" id="settingsEmpty">Adicione um efeito para ajustar.</p>
+        <p class="hint" id="settingsHint" hidden></p>
         <div id="effectParams" class="controls"></div>
+        <div class="btn-row" id="effectActions" hidden></div>
       </section>
 
       <section class="card" id="maskCard">

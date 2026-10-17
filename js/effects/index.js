@@ -14,8 +14,9 @@ import { directionalBlur } from './directionalBlur.js';
 import { gaussianBlur } from './gaussianBlur.js';
 import { noise } from './noise.js';
 import { pixelate } from './pixelate.js';
+import { starburst } from './starburst.js';
 
-export const effects = [radialBlur, zoomBlur, directionalBlur, gaussianBlur, noise, pixelate];
+export const effects = [radialBlur, zoomBlur, directionalBlur, gaussianBlur, noise, pixelate, starburst];
 
 export const GROUPS = ['Desfoques', 'Estilização'];
 
@@ -24,10 +25,12 @@ export function effectsByGroup() {
 }
 
 export function defaultParams(effect) {
-  return Object.fromEntries(effect.params.map((p) => [p.id, p.default]));
+  // Listas (ex.: pontos de luz) são copiadas para cada camada ter as suas.
+  return Object.fromEntries(effect.params.map((p) => [p.id, Array.isArray(p.default) ? structuredClone(p.default) : p.default]));
 }
 
 /** Parâmetros visíveis agora (alguns só aparecem conforme outros, ex.: cor do ruído tonalizado). */
 export function visibleParams(effect, params) {
-  return effect.params.filter((d) => !d.showIf || d.showIf(params));
+  // Pontos editados direto na foto não viram controles no painel.
+  return effect.params.filter((d) => d.type !== 'points' && (!d.showIf || d.showIf(params)));
 }

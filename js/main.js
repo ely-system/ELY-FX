@@ -2,6 +2,7 @@ import { Renderer } from './gl/renderer.js';
 import { MaskStore, History, ADD, SUBTRACT } from './mask.js';
 import { Viewport } from './viewport.js';
 import { effectsByGroup, defaultParams, visibleParams } from './effects/index.js';
+import { MAX_STARS } from './effects/starburst.js';
 import { slider, select, touchSlider } from './ui.js';
 import { APP_VERSION } from './version.js';
 
@@ -388,6 +389,11 @@ function buildSettings() {
   $('#btnResetParams').hidden = !L;
   $('#settingsTitle').textContent = L ? L.effect.name : 'Ajustes do efeito';
   $('#maskCard').classList.toggle('disabled', !L);
+  $('#settingsHint').hidden = !L?.effect.hint;
+  $('#settingsHint').textContent = L?.effect.hint || '';
+  const actionsEl = $('#effectActions');
+  actionsEl.replaceChildren(...effectActionButtons(L, 'btn small ghost'));
+  actionsEl.hidden = !actionsEl.children.length;
   if (L) maskOpacityControl.set(L.maskOpacity);
   if (!L) return;
 
@@ -434,6 +440,50 @@ function buildSettings() {
 }
 
 $('#btnResetParams').addEventListener('click', resetEffect);
+
+/** Botões de ações extras do efeito (ex.: limpar pontos de luz). */
+function effectActionButtons(L, cls) {
+  return (L?.effect.actions || []).map((a) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = cls;
+    b.textContent = a.label;
+    b.addEventListener('click', () => a.run(L, setPoints));
+    return b;
+  });
+}
+
+// ---- Pontos editados na foto (ex.: pontos de luz do filtro estrela) ----
+
+const selectedPoints = () => {
+  const L = state.selected;
+  return L && L.visible && L.effect.points ? L : null;
+};
+
+/** Troca a lista de pontos da camada, registrando no histórico. */
+function setPoints(L, next, before = L.params[L.effect.points]) {
+  const key = L.effect.points;
+  if (JSON.stringify(before) === JSON.stringify(next)) { L.params[key] = next; return; }
+  const apply = (v) => {
+    L.params[key] = structuredClone(v);
+    L.fxDirty = true;
+    dirtyFrom(state.layers.indexOf(L));
+  };
+  apply(next);
+  history.push({ undo: () => apply(before), redo: () => apply(next), bytes: 64 + next.length * 16 });
+  updateHistoryButtons();
+}
+
+/** Índice do ponto mais perto de p (px da tela) dentro de `radius`, ou -1. */
+function nearestPoint(L, p, radius = 24) {
+  let best = -1, bestD = radius;
+  L.params[L.effect.points].forEach(([ix, iy], i) => {
+    const [sx, sy] = view.toScreen(ix, iy);
+    const d = Math.hypot(sx - p[0], sy - p[1]);
+    if (d <= bestD) { best = i; bestD = d; }
+  });
+  return best;
+}
 
 function resetEffect() {
   const L = state.selected;
@@ -587,12 +637,17 @@ const selectedOrigin = () => {
 const ovCenter = $('#ovCenter');
 const ovRings = $('#ovRings');
 
+const ovPoints = $('#ovPoints');
+
 function updateOverlay() {
   const L = selectedOrigin();
-  // Sem ponto de origem: arrastar move a vista, então o cursor vira a "mão".
-  stage.classList.toggle('no-origin', !L);
-  overlay.style.display = state.loaded && L && L.effect.overlay ? '' : 'none';
-  if (!state.loaded || !L || !L.effect.overlay) return;
+  const P = selectedPoints();
+  // Sem ponto de origem nem pontos editáveis: arrastar move a vista, então o cursor vira a "mão".
+  stage.classList.toggle('no-origin', !L && !P);
+  overlay.style.display = state.loaded && ((L && L.effect.overlay) || P) ? '' : 'none';
+  ovCenter.style.display = L ? '' : 'none';
+  drawPointMarkers(P);
+  if (!state.loaded || !L || !L.effect.overlay) { ovRings.replaceChildren(); return; }
   const o = L.effect.overlay(L.params, renderer.src.w, renderer.src.h);
   const [sx, sy] = view.toScreen(o.center[0], o.center[1]);
   ovCenter.setAttribute('transform', `translate(${sx.toFixed(1)} ${sy.toFixed(1)})`);
@@ -608,6 +663,23 @@ function updateOverlay() {
     }
     dark.setAttribute('class', 'ring-dark');
     light.setAttribute('class', 'ring-light' + (i > 0 ? ' solid' : ''));
+  });
+}
+
+/** Marcadores dos pontos de luz da camada selecionada. */
+function drawPointMarkers(P) {
+  const pts = state.loaded && P ? P.params[P.effect.points] : [];
+  while (ovPoints.childNodes.length < pts.length) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.innerHTML = '<circle r="9" class="pt-dark"/><circle r="9" class="pt-light"/><circle r="2" class="pt-dot"/>';
+    ovPoints.append(g);
+  }
+  while (ovPoints.childNodes.length > pts.length) ovPoints.lastChild.remove();
+  pts.forEach(([ix, iy], i) => {
+    const [sx, sy] = view.toScreen(ix, iy);
+    const g = ovPoints.childNodes[i];
+    g.setAttribute('transform', `translate(${sx.toFixed(1)} ${sy.toFixed(1)})`);
+    g.classList.toggle('active', drag?.type === 'point' && drag.index === i);
   });
 }
 
@@ -714,6 +786,12 @@ function onPointerDown(e) {
   } else if (e.button === 1 || state.space || state.tool === 'pan') {
     drag = { type: 'pan', last: p };
     setPanning(true);
+  } else if (e.button === 2 && state.tool === 'center' && selectedPoints()) {
+    // Botão direito sobre um ponto de luz: remove.
+    const P = selectedPoints();
+    const i = nearestPoint(P, p);
+    if (i >= 0) setPoints(P, P.params[P.effect.points].filter((_, k) => k !== i));
+    drag = null;
   } else if (e.button !== 0) {
     drag = null;
   } else {
@@ -741,11 +819,31 @@ function cancelSingleAction() {
     for (const k in drag.before) setParam(k, drag.before[k], false, true, drag.layer);
     originEdit = null;
   }
+  if (drag.type === 'point') {
+    drag.layer.params[drag.layer.effect.points] = drag.before;
+    state.live = false;
+    dirtyFrom(state.layers.indexOf(drag.layer));
+  }
   if (drag.type === 'pan') setPanning(false);
 }
 
 /** Começa a ação da ferramenta atual no ponto p (mover origem, pintar ou, fora da foto, mover a vista). */
 function startAction(p) {
+  if (state.tool === 'center' && selectedPoints()) {
+    // Efeito com pontos (filtro estrela): tocar num ponto arrasta; tocar fora cria um novo.
+    const P = selectedPoints();
+    const key = P.effect.points;
+    const before = structuredClone(P.params[key]);
+    const hit = nearestPoint(P, p);
+    if (hit >= 0) { drag = { type: 'point', layer: P, index: hit, before }; return; }
+    if (!insideImage(p)) { drag = { type: 'pan', last: p }; setPanning(true); return; }
+    if (before.length >= MAX_STARS) { toast(`Máximo de ${MAX_STARS} pontos por efeito.`); return; }
+    const [ix, iy] = view.toImage(p[0], p[1]);
+    P.params[key] = [...structuredClone(before), [Math.round(ix), Math.round(iy)]];
+    drag = { type: 'point', layer: P, index: P.params[key].length - 1, before };
+    dirtyFrom(state.layers.indexOf(P));
+    return;
+  }
   if (state.tool === 'center') {
     const L = selectedOrigin();
     // Fora da foto, ou sem efeito com ponto de origem selecionado: move a vista.
@@ -772,6 +870,12 @@ function continueAction(p, e) {
     requestRender();
   } else if (drag.type === 'center') {
     moveCenter(p, true);
+  } else if (drag.type === 'point') {
+    const L = drag.layer;
+    const [ix, iy] = view.toImage(p[0], p[1]);
+    L.params[L.effect.points][drag.index] = [Math.round(ix), Math.round(iy)];
+    state.live = true;
+    dirtyFrom(state.layers.indexOf(L));
   } else if (drag.type === 'paint') {
     const events = e?.getCoalescedEvents ? e.getCoalescedEvents() : [];
     if (events.length > 1) for (const ce of events) paintTo(local(ce));
@@ -849,7 +953,18 @@ function endPointer(e) {
     return;
   }
   if (drag.type === 'paint') endPaint();
-  else if (drag.type === 'center') {
+  else if (drag.type === 'point') {
+    const L = drag.layer;
+    let next = L.params[L.effect.points];
+    const [ix, iy] = next[drag.index] || [0, 0];
+    // Arrastado para fora da foto: remove o ponto.
+    if (ix < 0 || iy < 0 || ix > renderer.src.w || iy > renderer.src.h) {
+      next = next.filter((_, i) => i !== drag.index);
+      toast('Ponto removido', 1000);
+    }
+    state.live = false;
+    setPoints(L, next, drag.before);
+  } else if (drag.type === 'center') {
     state.live = false;
     commitOriginEdit();
     if (drag.layer) dirtyFrom(state.layers.indexOf(drag.layer));
@@ -1096,7 +1211,7 @@ function updateHistoryButtons() {
   $('#btnUndo').disabled = !history.canUndo;
   $('#btnRedo').disabled = !history.canRedo;
 }
-const busy = () => drag?.type === 'paint' || drag?.type === 'center';
+const busy = () => drag?.type === 'paint' || drag?.type === 'center' || drag?.type === 'point';
 function undo() { if (!busy() && history.undo()) { updateHistoryButtons(); requestRender(); } }
 function redo() { if (!busy() && history.redo()) { updateHistoryButtons(); requestRender(); } }
 $('#btnUndo').addEventListener('click', undo);
@@ -1444,6 +1559,19 @@ function muiBuild() {
     reset.addEventListener('click', resetEffect);
     title.append(reset);
     frag.append(title);
+    if (state.selected.effect.hint) {
+      const hint = document.createElement('p');
+      hint.className = 'mui-hint';
+      hint.textContent = state.selected.effect.hint;
+      frag.append(hint);
+    }
+    const acts = effectActionButtons(state.selected, 'mbtn');
+    if (acts.length) {
+      const row = document.createElement('div');
+      row.className = 'mrow-actions';
+      row.append(...acts);
+      frag.append(row);
+    }
   }
 
   const items = muiTab === 'adjust' ? muiAdjustItems() : muiMaskItems();
