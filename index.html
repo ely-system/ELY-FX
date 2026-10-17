@@ -8,7 +8,9 @@
   <meta name="theme-color" content="#161616">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- Sem apple-mobile-web-app-status-bar-style de propósito: com "black-translucent" o iOS 26+ borra
+       os ~40pt abaixo do relógio no app instalado (e encurta a área útil embaixo). Com a barra padrão,
+       tingida pela theme-color, o topo fica nítido. O iOS só lê isso ao adicionar o app à Tela de Início. -->
   <meta name="apple-mobile-web-app-title" content="ELY FX">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -43,6 +45,8 @@
       <button id="btnExport" class="btn primary" disabled>Exportar</button>
     </div>
   </header>
+
+  <div class="diag" id="diag" hidden></div>
 
   <div class="updating" id="updating" hidden>
     <div class="updating-box"><div class="spinner"></div>Atualizando o ELY FX…</div>

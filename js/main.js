@@ -1335,6 +1335,52 @@ setInterval(checkForUpdate, 5 * 60 * 1000);
 checkForUpdate();
 
 // ---------------------------------------------------------------------------
+// Diagnóstico de tela (5 toques rápidos no logo): medidas reais do aparelho para ajustar margens.
+// ---------------------------------------------------------------------------
+
+{
+  let taps = [];
+  $('.brand').addEventListener('click', () => {
+    const now = performance.now();
+    taps = taps.filter((t) => now - t < 1500);
+    taps.push(now);
+    if (taps.length >= 5) { taps = []; toggleDiag(); }
+  });
+  $('#diag').addEventListener('click', () => { $('#diag').hidden = true; });
+}
+
+function toggleDiag() {
+  const box = $('#diag');
+  if (!box.hidden) { box.hidden = true; return; }
+  const probe = document.createElement('div');
+  probe.className = 'safe-probe';
+  document.body.append(probe);
+  const cs = getComputedStyle(probe);
+  const safe = ['Top', 'Right', 'Bottom', 'Left'].map((k) => parseFloat(cs['padding' + k]) || 0);
+  probe.remove();
+  const vv = window.visualViewport;
+  const mode = ['fullscreen', 'standalone', 'minimal-ui', 'browser'].find((m) => matchMedia(`(display-mode: ${m})`).matches);
+  const rect = (sel) => { const r = $(sel).getBoundingClientRect(); return `${Math.round(r.top)}→${Math.round(r.bottom)}`; };
+  const meta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')?.content || '(padrão)';
+  box.textContent = [
+    `ELY FX ${APP_VERSION}`,
+    `modo: ${mode}${navigator.standalone ? ' (navigator.standalone)' : ''}`,
+    `barra de status: ${meta}`,
+    `tela: ${screen.width}×${screen.height}  dpr ${devicePixelRatio}`,
+    `janela: ${innerWidth}×${innerHeight}`,
+    `visualViewport: ${vv ? `${Math.round(vv.width)}×${Math.round(vv.height)} topo ${Math.round(vv.offsetTop)}` : '—'}`,
+    `documento: ${document.documentElement.clientWidth}×${document.documentElement.clientHeight}`,
+    `área segura: topo ${safe[0]} dir ${safe[1]} base ${safe[2]} esq ${safe[3]}`,
+    `barra de cima: ${rect('.topbar')}`,
+    `painel/abas: ${rect('#mui')} · abas ${rect('.mtabs')}`,
+    `margem embaixo: ${getComputedStyle($('#mui')).paddingBottom}`,
+    '',
+    'Toque aqui para fechar.',
+  ].join('\n');
+  box.hidden = false;
+}
+
+// ---------------------------------------------------------------------------
 // Utilidades
 // ---------------------------------------------------------------------------
 

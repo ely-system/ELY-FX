@@ -245,6 +245,18 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
 .shortcuts dt { color: var(--text); font-family: ui-monospace, Consolas, monospace; font-size: 11px; max-width: 130px; }
 .shortcuts dd { margin: 0; color: var(--muted); }
 
+/* ---------- Diagnóstico (5 toques no logo) ---------- */
+.diag {
+  position: fixed; left: 8px; right: 8px; top: calc(env(safe-area-inset-top) + 60px); z-index: 40;
+  background: #000; color: #9f9; border: 1px solid #3a3a3a; border-radius: 10px; padding: 12px;
+  font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; user-select: text;
+}
+.diag[hidden] { display: none; }
+.safe-probe {
+  position: fixed; visibility: hidden; pointer-events: none;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
 /* ---------- Aviso de nova versão ---------- */
 .update-bar {
   position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 56px); transform: translateX(-50%); z-index: 20;
