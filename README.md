@@ -59,7 +59,8 @@ Blocos com a cor média (estilo pixel art), com **tamanho do pixel** e redução
 
 ### Raios de luz (estrela)
 Pontos de luz no estilo filtro estrela (cross screen). **Clique ou toque na foto** para criar um ponto; arraste para
-mover; arraste para fora da foto (ou botão direito no computador) para remover. Todos os pontos compartilham
+mover; arraste para fora da foto (ou botão direito no computador) para remover. O último ponto tocado fica
+selecionado (destacado): **Excluir selecionado** apaga só ele e **Excluir todos** limpa a foto. Todos os pontos compartilham
 os ajustes, em quatro grupos:
 - **Gerais**: opacidade, **Pontas** (6 por padrão), **Rotação** (gira todos juntos) e **Intensidade**.
 - **Raios da estrela**: **Comprimento**, **Espessura** (de linha fina a braço largo de estrela que afina até a ponta),

@@ -456,7 +456,7 @@ function effectActionButtons(L, cls) {
     b.type = 'button';
     b.className = cls;
     b.textContent = a.label;
-    b.addEventListener('click', () => a.run(L, setPoints));
+    b.addEventListener('click', () => { a.run(L, setPoints); requestRender(); });
     return b;
   });
 }
@@ -474,12 +474,23 @@ function setPoints(L, next, before = L.params[L.effect.points]) {
   if (JSON.stringify(before) === JSON.stringify(next)) { L.params[key] = next; return; }
   const apply = (v) => {
     L.params[key] = structuredClone(v);
+    // O ponto selecionado continua válido (desfazer/refazer pode mudar a quantidade de pontos).
+    const sel = L.selPoint ?? -1;
+    if (sel >= v.length || sel < 0) L.selPoint = v.length - 1;
     L.fxDirty = true;
     dirtyFrom(state.layers.indexOf(L));
   };
   apply(next);
   history.push({ undo: () => apply(before), redo: () => apply(next), bytes: 64 + next.length * 16 });
   updateHistoryButtons();
+}
+
+/** Remove o ponto i; a seleção passa para o último ponto que sobrar. */
+function removePoint(L, i) {
+  const next = L.params[L.effect.points].filter((_, k) => k !== i);
+  L.selPoint = next.length - 1;
+  setPoints(L, next);
+  requestRender();
 }
 
 /** Índice do ponto mais perto de p (px da tela) dentro de `radius`, ou -1. */
@@ -701,6 +712,7 @@ function drawPointMarkers(P) {
     const g = ovPoints.childNodes[i];
     g.setAttribute('transform', `translate(${sx.toFixed(1)} ${sy.toFixed(1)})`);
     g.classList.toggle('active', drag?.type === 'point' && drag.index === i);
+    g.classList.toggle('selected', P.selPoint === i);
   });
 }
 
@@ -811,7 +823,7 @@ function onPointerDown(e) {
     // Botão direito sobre um ponto de luz: remove.
     const P = selectedPoints();
     const i = nearestPoint(P, p);
-    if (i >= 0) setPoints(P, P.params[P.effect.points].filter((_, k) => k !== i));
+    if (i >= 0) removePoint(P, i);
     drag = null;
   } else if (e.button !== 0) {
     drag = null;
@@ -856,12 +868,14 @@ function startAction(p) {
     const key = P.effect.points;
     const before = structuredClone(P.params[key]);
     const hit = nearestPoint(P, p);
-    if (hit >= 0) { drag = { type: 'point', layer: P, index: hit, before }; return; }
+    // O último ponto tocado (ou criado) fica selecionado.
+    if (hit >= 0) { P.selPoint = hit; requestRender(); drag = { type: 'point', layer: P, index: hit, before }; return; }
     if (!insideImage(p)) { drag = { type: 'pan', last: p }; setPanning(true); return; }
     if (before.length >= MAX_STARS) { toast(`Máximo de ${MAX_STARS} pontos por efeito.`); return; }
     const [ix, iy] = view.toImage(p[0], p[1]);
     P.params[key] = [...structuredClone(before), [Math.round(ix), Math.round(iy)]];
     drag = { type: 'point', layer: P, index: P.params[key].length - 1, before };
+    P.selPoint = drag.index;
     dirtyFrom(state.layers.indexOf(P));
     return;
   }
@@ -981,6 +995,7 @@ function endPointer(e) {
     // Arrastado para fora da foto: remove o ponto.
     if (ix < 0 || iy < 0 || ix > renderer.src.w || iy > renderer.src.h) {
       next = next.filter((_, i) => i !== drag.index);
+      L.selPoint = next.length - 1;
       toast('Ponto removido', 1000);
     }
     state.live = false;

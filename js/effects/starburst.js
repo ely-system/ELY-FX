@@ -149,7 +149,7 @@ export const starburst = {
   opacityGroup: G,  // a opacidade do efeito abre o grupo Gerais
   openGroups: [G, RAYS, CORE, VAR],
   points: 'stars', // parâmetro com os pontos de luz, editados direto na foto
-  hint: 'Clique ou toque na foto para criar um ponto de luz. Arraste um ponto para movê-lo; arraste para fora da foto para removê-lo.',
+  hint: 'Clique ou toque na foto para criar um ponto de luz. O último ponto tocado fica selecionado. Arraste um ponto para movê-lo; arraste para fora da foto para removê-lo.',
   params: [
     { id: 'stars', type: 'points', default: [] },
     // Gerais
@@ -184,10 +184,17 @@ export const starburst = {
       tip: 'Sorteia outro padrão de variação e falhas.' },
   ],
 
-  /** Ações extras no painel (o histórico desfaz). */
+  /** Ações extras no painel (o histórico desfaz). `L.selPoint` é o último ponto tocado ou criado. */
   actions: [
-    { id: 'removeLast', label: 'Remover último ponto', run: (L, setStars) => setStars(L, L.params.stars.slice(0, -1)) },
-    { id: 'clear', label: 'Limpar pontos', run: (L, setStars) => setStars(L, []) },
+    { id: 'deleteSelected', label: 'Excluir selecionado', run: (L, setStars) => {
+      const stars = L.params.stars;
+      const i = L.selPoint ?? stars.length - 1;
+      if (i < 0 || i >= stars.length) return;
+      const next = stars.filter((_, k) => k !== i);
+      L.selPoint = next.length - 1;
+      setStars(L, next);
+    } },
+    { id: 'clear', label: 'Excluir todos', run: (L, setStars) => { L.selPoint = -1; setStars(L, []); } },
   ],
 
   render(r, src, w, h, p, target, img) {

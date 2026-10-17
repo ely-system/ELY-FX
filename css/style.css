@@ -109,6 +109,8 @@ svg { display: block; }
 #overlay .pt-dark { fill: none; stroke: rgba(0,0,0,.6); stroke-width: 3; }
 #overlay .pt-light { fill: rgba(255,255,255,.08); stroke: #fff; stroke-width: 1.2; }
 #overlay .pt-dot { fill: #fff; }
+#overlay g.selected .pt-light { stroke: var(--accent); stroke-width: 2; fill: rgba(224,182,90,.18); }
+#overlay g.selected .pt-dot { fill: var(--accent); }
 #overlay g.active .pt-light { stroke: var(--accent); stroke-width: 2; }
 #overlay.dim #ovPoints { opacity: .35; }
 #overlay.dim #ovRings { opacity: 0; }
