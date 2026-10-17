@@ -245,9 +245,16 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
 .shortcuts dt { color: var(--text); font-family: ui-monospace, Consolas, monospace; font-size: 11px; max-width: 130px; }
 .shortcuts dd { margin: 0; color: var(--muted); }
 
+/* ---------- App instalado no iPhone/iPad (iOS 26) ----------
+   O sistema aplica um desfoque próprio que desce ~40pt a partir do topo da área do app e não pode ser
+   desligado. A barra superior ganha essa folga (na mesma cor sólida), então os botões ficam abaixo dele.
+   Com o celular deitado o iOS esconde a barra de status e a folga não é necessária. */
+.ios-app { --ios-edge: 40px; }
+@media (orientation: landscape) and (max-height: 500px) { .ios-app { --ios-edge: 0px; } }
+
 /* ---------- Aviso de nova versão ---------- */
 .update-bar {
-  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 56px); transform: translateX(-50%); z-index: 20;
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + var(--ios-edge, 0px) + 56px); transform: translateX(-50%); z-index: 20;
   display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 12px;
   background: #2a2416; border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,.5);
   max-width: calc(100vw - 24px); font-size: 13px;
@@ -305,7 +312,8 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rg
   /* barra superior translúcida sobre a foto */
   .topbar {
     position: fixed; top: 0; left: 0; right: 0; z-index: 6; height: auto; min-height: 0;
-    padding: env(safe-area-inset-top) 8px 0; padding-bottom: 4px; padding-top: calc(env(safe-area-inset-top) + 4px);
+    padding: env(safe-area-inset-top) 8px 0; padding-bottom: 4px;
+    padding-top: calc(env(safe-area-inset-top) + var(--ios-edge, 0px) + 4px);
     /* Opaca de propósito: no iPhone (iOS 26, "Liquid Glass") o sistema aplica um desfoque próprio sobre
        conteúdo translúcido no topo da tela. Com cor sólida (igual à theme-color) não há o que desfocar. */
     background: var(--stage); border-bottom: 1px solid rgba(255,255,255,.05);
