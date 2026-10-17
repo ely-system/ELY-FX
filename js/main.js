@@ -1447,7 +1447,7 @@ function muiAdjustItems() {
     const [min, max] = paramRange(def);
     items.push({
       key: def.id, label: def.group ? def.label : (def.chip || def.label), group: def.group,
-      type: def.type, options: def.options, min, max, step: def.step, unit: unitText(unitOf(def)), track: def.track,
+      type: def.type, options: def.options, min, max, step: def.step, unit: unitText(unitOf(def)), track: def.track, log: def.log,
       default: def.default, get: () => L.params[def.id], set: (v, live) => onParamInput(def, v, live),
     });
     if (def.id === 'direction') items.push(fxOpacity);
