@@ -408,7 +408,9 @@ function buildSettings() {
   });
   settingsControls.__fxOpacity = opacity;
   const defs = visibleParams(L.effect, L.params);
-  if (!defs.some((d) => d.id === 'direction')) host.append(opacity.el);
+  // A opacidade pode abrir um grupo do efeito (opacityGroup); senão vem primeiro (ou depois da direção).
+  const opGroup = L.effect.opacityGroup;
+  if (!opGroup && !defs.some((d) => d.id === 'direction')) host.append(opacity.el);
   const groups = new Map();
   for (const def of defs) {
     const onInput = (v, live) => onParamInput(def, v, live);
@@ -439,6 +441,7 @@ function buildSettings() {
       details.append(summary, g);
       host.append(details);
       groups.set(def.group, g);
+      if (def.group === opGroup) g.append(opacity.el);
     }
     g.append(c.el);
   }
@@ -1442,9 +1445,11 @@ function muiAdjustItems() {
   const fxOpacity = { key: 'fxOpacity', label: 'Opacidade', type: 'range', min: 0, max: 100, step: 1, unit: '%', default: 100,
     get: () => L.fxOpacity, set: (v) => setFxOpacity(v) };
   const defs = visibleParams(L.effect, L.params);
-  if (!defs.some((d) => d.id === 'direction')) items.push(fxOpacity);
+  const opGroup = L.effect.opacityGroup;
+  if (!opGroup && !defs.some((d) => d.id === 'direction')) items.push(fxOpacity);
   for (const def of defs) {
     const [min, max] = paramRange(def);
+    if (opGroup && def.group === opGroup && !items.some((it) => it.key === 'fxOpacity')) items.push({ ...fxOpacity, group: opGroup });
     items.push({
       key: def.id, label: def.group ? def.label : (def.chip || def.label), group: def.group,
       type: def.type, options: def.options, min, max, step: def.step, unit: unitText(unitOf(def)), track: def.track, log: def.log,

@@ -60,9 +60,15 @@ Blocos com a cor média (estilo pixel art), com **tamanho do pixel** e redução
 ### Raios de luz (estrela)
 Pontos de luz no estilo filtro estrela (cross screen). **Clique ou toque na foto** para criar um ponto; arraste para
 mover; arraste para fora da foto (ou botão direito no computador) para remover. Todos os pontos compartilham
-**Pontas**, **Rotação** (gira todos juntos), **Tamanho dos raios**, **Tamanho do centro**, **Espessura** (de linha fina a braço largo de estrela que afina até a ponta), **Largura do traço** (traço largo e suave para raios grossos) com **Brilho do traço largo** e
-**Intensidade**. **Variação** deixa cada raio com comprimento, brilho e ângulo próprios, e **Falhas** varia a opacidade de forma suave ao longo
-de cada raio (até apagar trechos); **Dispersão** dá um leve arco-íris aos raios e **Brilho cromático** colore o brilho do centro (bordas e halo no espectro); **Aleatoriedade** sorteia outro padrão. A luz entra em modo Tela (screen).
+os ajustes, em quatro grupos:
+- **Gerais**: opacidade, **Pontas** (6 por padrão), **Rotação** (gira todos juntos) e **Intensidade**.
+- **Raios da estrela**: **Comprimento**, **Espessura** (de linha fina a braço largo de estrela que afina até a ponta),
+  **Difusão** (brilho largo e suave em volta), **Brilho** da difusão e **Raios cromáticos** (leve arco-íris).
+- **Centro da estrela**: **Tamanho**, **Centro cromático** (bordas e halo no espectro) e **Difusão do centro** (halo).
+- **Variação e cor**: **Variação** (comprimento, brilho e ângulo próprios por raio), **Falhas** (opacidade variando
+  suavemente ao longo do raio), **Cor da luz** e **Aleatoriedade**.
+
+A luz entra em modo Tela (screen).
 
 As cores (ruído tonalizado, cor da luz) abrem um **seletor de cor** no estilo Lightroom mobile: quadro de
 matiz × saturação, brilho, campo **hex** e cores prontas; aplica ao vivo e **Cancelar** volta à cor anterior.

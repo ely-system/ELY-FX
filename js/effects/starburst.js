@@ -9,6 +9,11 @@ import { hexToRgb } from '../ui.js';
 
 export const MAX_STARS = 32;
 
+const G = 'Gerais';
+const RAYS = 'Raios da estrela';
+const CORE = 'Centro da estrela';
+const VAR = 'Variação e cor';
+
 const FS = `#version 300 es
 precision highp float;
 uniform sampler2D uTex;
@@ -29,6 +34,7 @@ uniform float uGaps;
 uniform float uSeed;
 uniform float uDisp;          // dispersão (arco-íris) ao longo dos raios
 uniform float uCoreDisp;      // brilho cromático do centro
+uniform float uCoreGlow;      // difusão do centro (0..1)
 uniform float uWide;          // espessura do traço largo e difuso (0 = desligado)
 uniform float uWideInt;       // intensidade do traço difuso
 uniform vec3 uColor;
@@ -61,7 +67,9 @@ void main() {
       // Brilho cromático: cada cor com um raio um pouco diferente (vermelho por fora, azul por dentro)
       // e um halo suave com as cores do espectro, como a aberração de uma lente.
       vec3 crs = cr * (1.0 + uCoreDisp * vec3(0.4, 0.0, -0.3));
-      core += exp(-r2 / (crs * crs)) + 0.18 * crs * crs / (r2 + crs * crs);
+      // Difusão do centro: halo suave que se espalha mais (e um pouco mais forte) conforme o ajuste.
+      vec3 hrs = crs * (0.5 + uCoreGlow * 2.5);
+      core += exp(-r2 / (crs * crs)) + (0.18 + 0.3 * max(0.0, uCoreGlow - 0.2)) * hrs * hrs / (r2 + hrs * hrs);
       if (uCoreDisp > 0.001) {
         float rr = sqrt(r2);
         float ring = exp(-pow((rr - 2.6 * cr) / (0.8 * cr), 2.0)) * 0.4 * uCoreDisp;
@@ -138,32 +146,41 @@ export const starburst = {
   id: 'starburst',
   name: 'Raios de luz (estrela)',
   group: 'Estilização',
+  opacityGroup: G,  // a opacidade do efeito abre o grupo Gerais
+  openGroups: [G, RAYS, CORE, VAR],
   points: 'stars', // parâmetro com os pontos de luz, editados direto na foto
   hint: 'Clique ou toque na foto para criar um ponto de luz. Arraste um ponto para movê-lo; arraste para fora da foto para removê-lo.',
   params: [
     { id: 'stars', type: 'points', default: [] },
-    { id: 'points', type: 'range', label: 'Pontas', min: 2, max: 16, step: 1, default: 8 },
-    { id: 'rotation', type: 'range', label: 'Rotação', min: -180, max: 180, step: 1, default: 0, unit: '°',
+    // Gerais
+    { id: 'points', type: 'range', group: G, label: 'Pontas', min: 2, max: 16, step: 1, default: 6 },
+    { id: 'rotation', type: 'range', group: G, label: 'Rotação', min: -180, max: 180, step: 1, default: 0, unit: '°',
       tip: 'Gira todos os raios de todos os pontos juntos.' },
-    { id: 'length', type: 'range', label: 'Tamanho dos raios', chip: 'Raios', min: 10, max: 4000, step: 1, default: 400, unit: 'px', log: true },
-    { id: 'core', type: 'range', label: 'Tamanho do centro', chip: 'Centro', min: 0, max: 300, step: 1, default: 20, unit: 'px' },
-    { id: 'thickness', type: 'range', label: 'Espessura dos raios', chip: 'Espessura', min: 0.5, max: 400, step: 0.5, default: 2.5, unit: 'px', log: true,
+    { id: 'intensity', type: 'range', group: G, label: 'Intensidade', min: 0, max: 200, step: 1, default: 100, unit: '%',
+      tip: 'Força de toda a luz: raios e centro.' },
+    // Raios da estrela
+    { id: 'length', type: 'range', group: RAYS, label: 'Comprimento dos raios', min: 10, max: 4000, step: 1, default: 400, unit: 'px', log: true },
+    { id: 'thickness', type: 'range', group: RAYS, label: 'Espessura dos raios', min: 0.5, max: 400, step: 0.5, default: 2.5, unit: 'px', log: true,
       tip: 'Fino: linha de luz. Largo: braço sólido de estrela que afina até a ponta.' },
-    { id: 'wide', type: 'range', label: 'Largura do traço', chip: 'Largura', min: 0, max: 400, step: 1, default: 0, unit: 'px',
-      tip: 'Engrossa os raios com um traço largo e suave por baixo do traço nítido (0 = desligado).' },
-    { id: 'wideInt', type: 'range', label: 'Brilho do traço largo', chip: 'Brilho largo', min: 0, max: 100, step: 1, default: 60, unit: '%',
-      tip: 'Força do traço largo (100% = tão forte quanto o traço nítido).' },
-    { id: 'intensity', type: 'range', label: 'Intensidade', min: 0, max: 200, step: 1, default: 100, unit: '%' },
-    { id: 'variation', type: 'range', label: 'Variação', min: 0, max: 100, step: 1, default: 40, unit: '%',
-      tip: 'Deixa cada raio diferente: comprimento, brilho e leve desvio de ângulo.' },
-    { id: 'gaps', type: 'range', label: 'Falhas', min: 0, max: 100, step: 1, default: 45, unit: '%',
-      tip: 'Variação suave de opacidade ao longo de cada raio, em pontos diferentes; no máximo apaga trechos.' },
-    { id: 'disp', type: 'range', label: 'Dispersão (arco-íris)', chip: 'Dispersão', min: 0, max: 100, step: 1, default: 0, unit: '%',
-      tip: 'Leve separação de cores ao longo dos raios, como em filtros estrela reais.' },
-    { id: 'coreDisp', type: 'range', label: 'Brilho cromático', chip: 'Cromático', min: 0, max: 100, step: 1, default: 0, unit: '%',
+    { id: 'wide', type: 'range', group: RAYS, label: 'Difusão dos raios', min: 0, max: 400, step: 1, default: 0, unit: 'px',
+      tip: 'Brilho largo e suave em volta de cada raio (0 = desligado).' },
+    { id: 'wideInt', type: 'range', group: RAYS, label: 'Brilho dos raios', min: 0, max: 100, step: 1, default: 60, unit: '%',
+      tip: 'Força da difusão dos raios (100% = tão forte quanto o traço nítido).' },
+    { id: 'disp', type: 'range', group: RAYS, label: 'Raios cromáticos', min: 0, max: 100, step: 1, default: 0, unit: '%',
+      tip: 'Leve separação de cores (arco-íris) ao longo dos raios, como em filtros estrela reais.' },
+    // Centro da estrela
+    { id: 'core', type: 'range', group: CORE, label: 'Tamanho do centro', min: 0, max: 300, step: 1, default: 20, unit: 'px' },
+    { id: 'coreDisp', type: 'range', group: CORE, label: 'Centro cromático', min: 0, max: 100, step: 1, default: 0, unit: '%',
       tip: 'Variação de cor no brilho do centro: bordas avermelhadas/azuladas e um halo nas cores do espectro.' },
-    { id: 'color', type: 'color', label: 'Cor da luz', default: '#FFFFFF' },
-    { id: 'seed', type: 'range', label: 'Aleatoriedade', min: 1, max: 100, step: 1, default: 1,
+    { id: 'coreGlow', type: 'range', group: CORE, label: 'Difusão do centro', min: 0, max: 100, step: 1, default: 20, unit: '%',
+      tip: 'Quanto o brilho do centro se espalha em volta, como um halo.' },
+    // Variação e cor
+    { id: 'variation', type: 'range', group: VAR, label: 'Variação', min: 0, max: 100, step: 1, default: 40, unit: '%',
+      tip: 'Deixa cada raio diferente: comprimento, brilho e leve desvio de ângulo.' },
+    { id: 'gaps', type: 'range', group: VAR, label: 'Falhas', min: 0, max: 100, step: 1, default: 45, unit: '%',
+      tip: 'Variação suave de opacidade ao longo de cada raio, em pontos diferentes; no máximo apaga trechos.' },
+    { id: 'color', type: 'color', group: VAR, label: 'Cor da luz', default: '#FFFFFF' },
+    { id: 'seed', type: 'range', group: VAR, label: 'Aleatoriedade', min: 1, max: 100, step: 1, default: 1,
       tip: 'Sorteia outro padrão de variação e falhas.' },
   ],
 
@@ -185,7 +202,7 @@ export const starburst = {
       uPx: img.w / w,
       'uStars[0]': arr, uCount: stars.length, uPoints: Math.round(p.points),
       uRot: (p.rotation * Math.PI) / 180, uLen: p.length, uCore: p.core, uThick: p.thickness,
-      uInt: p.intensity / 100, uVar: p.variation / 100, uGaps: p.gaps / 100, uSeed: p.seed, uDisp: (p.disp || 0) / 100, uCoreDisp: (p.coreDisp || 0) / 100,
+      uInt: p.intensity / 100, uVar: p.variation / 100, uGaps: p.gaps / 100, uSeed: p.seed, uDisp: (p.disp || 0) / 100, uCoreDisp: (p.coreDisp || 0) / 100, uCoreGlow: (p.coreGlow ?? 20) / 100,
       uWide: p.wide || 0, uWideInt: (p.wideInt ?? 60) / 100,
       uColor: lightFromHex(p.color),
     });
