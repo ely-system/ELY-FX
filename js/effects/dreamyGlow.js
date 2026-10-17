@@ -1,4 +1,4 @@
-// Dreamy glow: uma cópia desfocada (gaussiano) da foto mesclada por cima em modo Tela ou Clarear,
+// Dreamy glow: uma cópia desfocada (gaussiano) da foto mesclada por cima — tipo Sonho (Tela) ou Leve (Clarear),
 // com intensidade entre 10% e 80%. Em "Só as luzes", apenas as áreas acima do limite de brilho
 // geram o brilho difuso, como o "bloom" de lentes e filtros de difusão.
 
@@ -42,10 +42,12 @@ export const dreamyGlow = {
   name: 'Dreamy glow',
   group: 'Estilização',
   params: [
-    { id: 'radius', type: 'range', label: 'Raio do desfoque', chip: 'Raio', min: 1, max: 300, step: 1, default: 40, unit: 'px', log: true },
-    { id: 'mode', type: 'select', label: 'Mesclagem', default: 'screen',
-      options: [{ value: 'screen', label: 'Tela' }, { value: 'lighten', label: 'Clarear' }] },
+    { id: 'expansion', type: 'range', label: 'Expansão', min: 0, max: 100, step: 1, default: 40, unit: '%',
+      tip: 'Quanto o brilho se espalha (100% = desfoque de 100 px).' },
     { id: 'amount', type: 'range', label: 'Intensidade', min: 10, max: 80, step: 1, default: 40, unit: '%' },
+    { id: 'mode', type: 'select', label: 'Tipo', default: 'screen',
+      tip: 'Sonho: brilho enevoado (mesclagem Tela). Leve: só clareia onde o brilho é mais claro (Clarear).',
+      options: [{ value: 'screen', label: 'Sonho' }, { value: 'lighten', label: 'Leve' }] },
     { id: 'area', type: 'select', label: 'Área', default: 'all',
       options: [{ value: 'all', label: 'Toda a foto' }, { value: 'lights', label: 'Só as luzes' }] },
     { id: 'threshold', type: 'range', label: 'Limite das luzes', chip: 'Limite', min: 0, max: 100, step: 1, default: 65, unit: '%',
@@ -61,7 +63,8 @@ export const dreamyGlow = {
       r.pass(r.program(EXTRACT_FS), ex, { uTex: src.tex, uRes: [w, h], uLod: lod, uThreshold: p.threshold / 100 });
       glowSrc = { tex: ex.tex, w, h };
     }
-    const blurred = gaussianBlur.render(r, glowSrc, w, h, { radius: p.radius }, target, img);
+    // Expansão: 0–100% → desfoque de 0 a 100 px da foto.
+    const blurred = gaussianBlur.render(r, glowSrc, w, h, { radius: p.expansion }, target, img);
     // O desfoque devolve target(1) (raio pequeno) ou um alvo reduzido; a mistura vai para um alvo livre.
     const out = blurred === target(0).tex ? target(1) : target(0);
     r.pass(r.program(BLEND_FS), out, {

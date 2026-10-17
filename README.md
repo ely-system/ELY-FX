@@ -46,8 +46,8 @@ A luminosidade vira um degradê entre a **Cor das sombras** e a **Cor das luzes*
 **Contraste** e **Equilíbrio** (puxa os meios-tons para uma das cores).
 
 ### Dreamy glow
-Aspecto de sonho: uma cópia com desfoque gaussiano (**Raio**) mesclada em **Tela** ou **Clarear**, com
-**Intensidade** de 10% a 80%. Em **Área → Só as luzes**, apenas o que passa do **Limite das luzes** gera o brilho
+Aspecto de sonho: uma cópia com desfoque gaussiano (**Expansão**, 0–100% = até 100 px) com **Intensidade** de
+10% a 80% e **Tipo** **Sonho** (mesclagem Tela) ou **Leve** (Clarear). Em **Área → Só as luzes**, apenas o que passa do **Limite das luzes** gera o brilho
 difuso (bloom).
 
 ### Ruído / Granulado
