@@ -2,6 +2,16 @@
 
 Efeitos fotográficos direto no navegador, sem Photoshop. Tudo roda localmente na placa de vídeo (WebGL2) — a foto nunca sai do computador do usuário.
 
+## Camadas de efeito
+
+Vários efeitos podem ser aplicados na mesma foto, como camadas simplificadas:
+
+- **Adicionar efeito** abre um menu agrupado (**Desfoques** e **Estilização**).
+- A lista mostra o efeito de cima primeiro; ele é aplicado por último, sobre o resultado dos de baixo.
+- Arraste pelo **≡** para mudar a ordem; o olho oculta e o × remove. Tocar/clicar no nome abre os ajustes.
+- Cada efeito tem a própria **opacidade**, **máscara** e **opacidade da máscara**.
+- Desfazer/refazer inclui adicionar, remover e reordenar efeitos, pinceladas e o ponto de origem.
+
 ## Efeitos
 
 ### Desfoque radial
@@ -17,6 +27,13 @@ e **Distância** (px da foto), em vários passes para um rastro contínuo.
 ### Desfoque gaussiano
 Equivalente ao *Desfoque Gaussiano* do Photoshop, com **Raio** em px da foto. Separável (horizontal + vertical);
 raios grandes são calculados em resolução reduzida e ampliados, mantendo a velocidade.
+
+### Ruído / Granulado
+Tipos **RGB**, **Monocromático** e **Tonalizado** (com matiz e saturação da cor), quantidade, tamanho do grão
+(grãos maiores ficam suaves, como filme), distribuição uniforme/gaussiana e variação do padrão.
+
+### Pixelização
+Blocos com a cor média (estilo pixel art), com **tamanho do pixel** e redução de **cores** (até 8 cores).
 
 Controles dos desfoques radial e de zoom:
 
@@ -98,6 +115,8 @@ js/effects/radialBlur.js
 js/effects/zoomBlur.js
 js/effects/directionalBlur.js
 js/effects/gaussianBlur.js
+js/effects/noise.js
+js/effects/pixelate.js
 ```
 
 Para adicionar um efeito novo, crie um módulo em `js/effects/` com `id`, `name`, `params` e `render()` (veja `radialBlur.js` / `radialCommon.js`) e registre-o em `js/effects/index.js`. Os controles do painel são gerados automaticamente a partir de `params`.
