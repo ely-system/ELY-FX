@@ -74,12 +74,13 @@ export const noise = {
   params: [
     { id: 'type', type: 'select', label: 'Tipo', default: 'mono',
       options: [{ value: 'rgb', label: 'RGB' }, { value: 'mono', label: 'Monocromático', short: 'Mono' }, { value: 'tint', label: 'Tonalizado' }] },
+    // A cor aparece logo abaixo do tipo quando ele é Tonalizado.
+    { id: 'color', type: 'color', label: 'Cor do ruído', default: '#E8A04C', showIf: isTint },
     { id: 'amount', type: 'range', label: 'Quantidade', min: 0, max: 100, step: 1, default: 20, unit: '%' },
     { id: 'size', type: 'range', label: 'Tamanho do grão', chip: 'Grão', min: 1, max: 10, step: 0.1, default: 1, unit: 'px',
       tip: 'Grãos maiores ficam mais suaves, como granulado de filme.' },
     { id: 'dist', type: 'select', label: 'Distribuição', default: 'gauss',
       options: [{ value: 'uniform', label: 'Uniforme' }, { value: 'gauss', label: 'Gaussiana' }] },
-    { id: 'color', type: 'color', label: 'Cor do ruído', default: '#E8A04C', showIf: isTint },
     { id: 'seed', type: 'range', label: 'Variação', min: 1, max: 100, step: 1, default: 1,
       tip: 'Muda o padrão aleatório do ruído.' },
   ],
