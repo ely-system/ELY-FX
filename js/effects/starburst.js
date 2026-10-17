@@ -29,6 +29,8 @@ uniform float uGaps;
 uniform float uSeed;
 uniform float uDisp;          // dispersão (arco-íris) ao longo dos raios
 uniform float uCoreDisp;      // brilho cromático do centro
+uniform float uWide;          // espessura do traço largo e difuso (0 = desligado)
+uniform float uWideInt;       // intensidade do traço difuso
 uniform vec3 uColor;
 out vec4 outColor;
 
@@ -85,7 +87,12 @@ void main() {
       float u = t / L;
       float w = th * (1.0 - 0.55 * u) + 1e-4;
       // Traço fino com um leve brilho em volta, como a difração de um filtro real.
-      float across = exp(-(s * s) / (w * w)) + 0.22 * exp(-(s * s) / (w * w * 16.0));
+      float across = (exp(-(s * s) / (w * w)) + 0.22 * exp(-(s * s) / (w * w * 16.0))) * gain;
+      // Segundo traço: largo e difuso, afinando um pouco ao longo do raio.
+      if (uWide > 0.0) {
+        float wd = max(uWide, uPx) * (1.0 - 0.4 * u);
+        across += uWideInt * exp(-(s * s) / (wd * wd));
+      }
       // Forte perto do centro e uma cauda longa que se apaga aos poucos.
       float along = (0.55 * exp(-5.0 * u) + 0.45 * (1.0 - u) * (1.0 - u)) * (1.0 - uVar * 0.6 * rb);
       // Falhas: a opacidade varia suavemente ao longo do raio (várias escalas de irregularidade);
@@ -102,7 +109,7 @@ void main() {
         vec3 spec = 0.5 + 0.5 * cos(6.2831853 * (t / max(L * 0.3, 1.0) + rb + vec3(0.0, 0.33, 0.67)));
         tint = mix(vec3(1.0), spec * 1.4, uDisp);
       }
-      rays += tint * (across * along * irr * gain * 1.6);
+      rays += tint * (across * along * irr * 1.6);
     }
   }
   vec3 add = clamp(uColor * (core + rays) * uInt, 0.0, 1.0);
@@ -130,6 +137,10 @@ export const starburst = {
     { id: 'length', type: 'range', label: 'Tamanho dos raios', chip: 'Raios', min: 10, max: 4000, step: 1, default: 400, unit: 'px', log: true },
     { id: 'core', type: 'range', label: 'Tamanho do centro', chip: 'Centro', min: 0, max: 300, step: 1, default: 20, unit: 'px' },
     { id: 'thickness', type: 'range', label: 'Espessura dos raios', chip: 'Espessura', min: 0.5, max: 20, step: 0.5, default: 2.5, unit: 'px' },
+    { id: 'wide', type: 'range', label: 'Espessura difusa', chip: 'Difuso', min: 0, max: 200, step: 1, default: 0, unit: 'px',
+      tip: 'Segundo traço, largo e suave, em cada raio (0 = desligado).' },
+    { id: 'wideInt', type: 'range', label: 'Intensidade difusa', min: 0, max: 100, step: 1, default: 35, unit: '%',
+      tip: 'Brilho do traço largo e difuso.' },
     { id: 'intensity', type: 'range', label: 'Intensidade', min: 0, max: 200, step: 1, default: 100, unit: '%' },
     { id: 'variation', type: 'range', label: 'Variação', min: 0, max: 100, step: 1, default: 40, unit: '%',
       tip: 'Deixa cada raio diferente: comprimento, brilho e leve desvio de ângulo.' },
@@ -163,6 +174,7 @@ export const starburst = {
       'uStars[0]': arr, uCount: stars.length, uPoints: Math.round(p.points),
       uRot: (p.rotation * Math.PI) / 180, uLen: p.length, uCore: p.core, uThick: p.thickness,
       uInt: p.intensity / 100, uVar: p.variation / 100, uGaps: p.gaps / 100, uSeed: p.seed, uDisp: (p.disp || 0) / 100, uCoreDisp: (p.coreDisp || 0) / 100,
+      uWide: p.wide || 0, uWideInt: (p.wideInt ?? 35) / 100,
       uColor: lightFromHex(p.color),
     });
     return out.tex;
